@@ -23,6 +23,11 @@ export const EAT_SECONDS = 2;
 export const BUSH_EAT_SECONDS = 3.5;
 export const BUSH_REGROW_SECONDS = 280;
 
+export const SOW_SECONDS = 1.5;
+export const HARVEST_SECONDS = 2;
+export const CROP_GROW_SECONDS = 300; // 파종 → 수확까지
+export const FOOD_PER_HARVEST = 3;
+
 export const HUNGER_SEEK_FOOD = 0.3; // 이 밑으로 떨어지면 식사 우선
 export const REST_COLLAPSE = 0.12; // 이 밑이면 어디서든 잠
 export const NIGHT_SLEEP_REST = 0.7; // 밤이고 이 밑이면 취침

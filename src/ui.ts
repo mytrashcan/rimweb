@@ -9,6 +9,7 @@ const TOOLS: { id: Tool; label: string }[] = [
   { id: 'wall', label: '🧱 벽 (목재 2)' },
   { id: 'bed', label: '🛏️ 침대 (목재 6)' },
   { id: 'stockpile', label: '📦 비축구역' },
+  { id: 'farm', label: '🌾 경작지' },
   { id: 'cancel', label: '❌ 취소' },
 ];
 
@@ -40,6 +41,24 @@ export class UI {
       this.speedbar.appendChild(btn);
       this.speedButtons.push(btn);
     });
+    // 저장 / 불러오기
+    const flash = (btn: HTMLButtonElement, text: string) => {
+      const orig = btn.textContent;
+      btn.textContent = text;
+      setTimeout(() => (btn.textContent = orig), 900);
+    };
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = '💾';
+    saveBtn.title = '저장';
+    saveBtn.onclick = () => flash(saveBtn, this.game.save() ? '✔' : '✖');
+    const loadBtn = document.createElement('button');
+    loadBtn.textContent = '📂';
+    loadBtn.title = '불러오기';
+    loadBtn.onclick = () => {
+      uiState.selected = null;
+      flash(loadBtn, this.game.load() ? '✔' : '✖');
+    };
+    this.speedbar.append(saveBtn, loadBtn);
   }
 
   update() {

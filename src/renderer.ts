@@ -67,6 +67,13 @@ export class Renderer {
         const py = y * TILE;
         g.rect(px, py, TILE, TILE).fill(m.baseColor[i]);
 
+        if (m.farm[i]) {
+          // 갈아엎은 밭고랑
+          g.rect(px, py, TILE, TILE).fill({ color: 0x4a3826, alpha: 0.75 });
+          for (let row = 0; row < 3; row++) {
+            g.rect(px + 2, py + 3 + row * 6, TILE - 4, 2).fill({ color: 0x3a2c1e, alpha: 0.8 });
+          }
+        }
         if (m.terrain[i] === Terrain.Water) {
           // 물결 하이라이트
           if ((x + y) % 3 === 0) g.rect(px + 4, py + TILE / 2, TILE / 2, 2).fill(0x4a7eb0);
@@ -84,6 +91,15 @@ export class Renderer {
           g.rect(px + TILE / 2 - 2, py + TILE / 2, 4, TILE / 2 - 2).fill(0x5b4226);
           g.circle(px + TILE / 2, py + TILE / 2 - 2, TILE * 0.36).fill(0x2e5d2e);
           g.circle(px + TILE / 2 - 3, py + TILE / 2 - 5, TILE * 0.18).fill(0x3a703a);
+        } else if (m.plant[i] === Plant.Crop) {
+          // 작물: 성장도에 따라 새싹 → 노랗게 익은 이삭
+          const gr = m.growth[i];
+          const mature = gr >= 1;
+          const col = mature ? 0xd6c04a : 0x6abf5a;
+          const size = 1.5 + gr * 2.5;
+          for (const [ox, oy] of [[5, 6], [12, 9], [7, 14], [14, 15]]) {
+            g.circle(px + ox, py + oy, size).fill(col);
+          }
         } else if (m.plant[i] === Plant.Bush) {
           const grown = m.growth[i] >= 0.5;
           g.circle(px + TILE / 2, py + TILE / 2, TILE * (0.16 + 0.14 * m.growth[i]))

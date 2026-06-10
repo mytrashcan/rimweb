@@ -1,6 +1,7 @@
 import type { Application } from 'pixi.js';
 import { WALL_WOOD_COST, WALL_WORK, BED_WOOD_COST, BED_WORK } from './constants';
 import { Plant, Structure, Designation } from './map';
+import { makeForcedJob } from './jobs';
 import type { Game } from './game';
 import type { Camera } from './camera';
 import type { Renderer } from './renderer';
@@ -12,6 +13,7 @@ export function setupInput(app: Application, game: Game, camera: Camera, rendere
   let dragging = false;
   let dragStart = { x: 0, y: 0 };
   let lastPointer = { x: 0, y: 0 };
+  let rightDownAt = { x: 0, y: 0 }; // 우클릭 '클릭'과 '드래그 팬' 구분용
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -19,6 +21,7 @@ export function setupInput(app: Application, game: Game, camera: Camera, rendere
     lastPointer = { x: e.clientX, y: e.clientY };
     if (e.button === 1 || e.button === 2) {
       panning = true;
+      rightDownAt = { x: e.clientX, y: e.clientY };
       canvas.setPointerCapture(e.pointerId);
       return;
     }
@@ -51,7 +54,18 @@ export function setupInput(app: Application, game: Game, camera: Camera, rendere
   });
 
   canvas.addEventListener('pointerup', (e) => {
-    if (panning && (e.button === 1 || e.button === 2)) panning = false;
+    if (panning && (e.button === 1 || e.button === 2)) {
+      panning = false;
+      // 거의 움직이지 않은 우클릭 = 선택된 정착민에게 직접 명령
+      const moved = Math.hypot(e.clientX - rightDownAt.x, e.clientY - rightDownAt.y);
+      if (e.button === 2 && moved < 6 && uiState.selected) {
+        const t = camera.screenToTile(e.clientX, e.clientY);
+        if (game.map.inBounds(t.x, t.y)) {
+          const job = makeForcedJob(uiState.selected, game, t.x, t.y);
+          if (job) uiState.selected.assignForcedJob(game, job);
+        }
+      }
+    }
     if (dragging && e.button === 0) {
       dragging = false;
       if (renderer.dragRect) applyTool(game, renderer.dragRect);
@@ -123,11 +137,21 @@ function applyTool(game: Game, rect: { x0: number; y0: number; x1: number; y1: n
         case 'stockpile':
           if (m.walkableIdx(i) && m.structure[i] === Structure.None && !m.blueprints.has(i)) {
             m.stockpile[i] = 1;
+            m.farm[i] = 0;
+          }
+          break;
+        case 'farm':
+          // 경작지: 통행 가능한 빈 땅 (나무·덤불은 먼저 제거해야 함)
+          if (m.walkableIdx(i) && m.structure[i] === Structure.None &&
+              (m.plant[i] === Plant.None || m.plant[i] === Plant.Crop) && !m.blueprints.has(i)) {
+            m.farm[i] = 1;
+            m.stockpile[i] = 0;
           }
           break;
         case 'cancel': {
           m.designation[i] = Designation.None;
           m.stockpile[i] = 0;
+          m.farm[i] = 0;
           const bp = m.blueprints.get(i);
           if (bp) {
             if (bp.woodHas > 0) m.dropItem(i, 'wood', bp.woodHas); // 배달된 자재 반환

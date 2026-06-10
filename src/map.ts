@@ -1,4 +1,4 @@
-import { MAP_W, MAP_H, BUSH_REGROW_SECONDS } from './constants';
+import { MAP_W, MAP_H, BUSH_REGROW_SECONDS, CROP_GROW_SECONDS } from './constants';
 import { Terrain, Plant, Structure, Designation } from './types';
 import type { Blueprint, ItemStack, ItemType } from './types';
 
@@ -11,6 +11,7 @@ export class GameMap {
   growth = new Float32Array(MAP_W * MAP_H); // 덤불 성장도 0~1
   structure = new Uint8Array(MAP_W * MAP_H);
   stockpile = new Uint8Array(MAP_W * MAP_H);
+  farm = new Uint8Array(MAP_W * MAP_H);
   designation = new Uint8Array(MAP_W * MAP_H);
   baseColor = new Uint32Array(MAP_W * MAP_H);
   blueprints = new Map<number, Blueprint>();
@@ -50,10 +51,15 @@ export class GameMap {
   }
 
   update(dt: number) {
-    // 덤불 재성장
+    // 덤불 재성장 + 작물 성장
     for (let i = 0; i < this.plant.length; i++) {
       if (this.plant[i] === Plant.Bush && this.growth[i] < 1) {
         this.growth[i] = Math.min(1, this.growth[i] + dt / BUSH_REGROW_SECONDS);
+      } else if (this.plant[i] === Plant.Crop && this.growth[i] < 1) {
+        const before = this.growth[i];
+        this.growth[i] = Math.min(1, this.growth[i] + dt / CROP_GROW_SECONDS);
+        // 성장 단계가 바뀔 때만 다시 그리기 (4단계)
+        if (((before * 4) | 0) !== ((this.growth[i] * 4) | 0)) this.dirty = true;
       }
     }
   }
@@ -107,6 +113,38 @@ export class GameMap {
       if (this.structure[i] === Structure.Bed) return true;
     }
     return false;
+  }
+
+  // ---------- 직렬화 ----------
+
+  serialize() {
+    return {
+      terrain: Array.from(this.terrain),
+      rock: Array.from(this.rock),
+      plant: Array.from(this.plant),
+      growth: Array.from(this.growth, (v) => Math.round(v * 1000) / 1000),
+      structure: Array.from(this.structure),
+      stockpile: Array.from(this.stockpile),
+      farm: Array.from(this.farm),
+      designation: Array.from(this.designation),
+      blueprints: [...this.blueprints.entries()],
+      items: [...this.items.entries()],
+    };
+  }
+
+  deserialize(data: ReturnType<GameMap['serialize']>) {
+    this.terrain.set(data.terrain);
+    this.rock.set(data.rock);
+    this.plant.set(data.plant);
+    this.growth.set(data.growth);
+    this.structure.set(data.structure);
+    this.stockpile.set(data.stockpile);
+    this.farm.set(data.farm ?? []);
+    this.designation.set(data.designation);
+    this.blueprints = new Map(data.blueprints);
+    this.items = new Map(data.items);
+    this.recomputeColors();
+    this.dirty = true;
   }
 
   // ---------- 맵 생성 ----------
@@ -170,18 +208,22 @@ export class GameMap {
     this.dropItem(this.idx(cx - 1, cy + 1), 'wood', 20);
     this.dropItem(this.idx(cx + 1, cy + 1), 'food', 14);
 
-    // 타일별 미세 색상 변화
+    this.recomputeColors();
+    this.dirty = true;
+  }
+
+  /** 지형 기반 타일 색상 (결정적 지터 포함) — 맵 생성/로드 후 호출 */
+  recomputeColors() {
     for (let i = 0; i < this.terrain.length; i++) {
       const base =
         this.terrain[i] === Terrain.Grass ? 0x3f6d3a :
         this.terrain[i] === Terrain.Dirt ? 0x6e5a3e : 0x2e5d8c;
-      const j = ((i * 2654435761) >>> 24) % 14 - 7; // 결정적 지터
+      const j = ((i * 2654435761) >>> 24) % 14 - 7;
       const r = Math.min(255, Math.max(0, ((base >> 16) & 0xff) + j));
       const g = Math.min(255, Math.max(0, ((base >> 8) & 0xff) + j));
       const b = Math.min(255, Math.max(0, (base & 0xff) + j));
       this.baseColor[i] = (r << 16) | (g << 8) | b;
     }
-    this.dirty = true;
   }
 
   private randTile(): number {

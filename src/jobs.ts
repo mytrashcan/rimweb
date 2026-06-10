@@ -1,6 +1,7 @@
 import {
   CHOP_SECONDS, MINE_SECONDS, EAT_SECONDS, BUSH_EAT_SECONDS,
   WOOD_PER_TREE, STONE_PER_ROCK, CONSTRUCT_SPEED,
+  SOW_SECONDS, HARVEST_SECONDS, FOOD_PER_HARVEST,
   HUNGER_SEEK_FOOD, REST_COLLAPSE, NIGHT_SLEEP_REST,
 } from './constants';
 import { bfsNearest } from './astar';
@@ -215,6 +216,77 @@ class ConstructJob extends Job {
   }
 }
 
+// ---------- 작업: 파종 ----------
+
+class SowJob extends Job {
+  label = '파종 중';
+  private timer = SOW_SECONDS;
+  constructor(private target: number) {
+    super();
+  }
+  update(p: Pawn, g: Game, dt: number) {
+    const m = g.map;
+    if (!m.farm[this.target] || m.plant[this.target] !== Plant.None || !m.walkableIdx(this.target)) {
+      this.failed = true;
+      return;
+    }
+    const [tx, ty] = m.xy(this.target);
+    const move = p.goTo(g, dt, tx, ty);
+    if (move === 'blocked') { this.failed = true; return; }
+    if (move !== 'arrived') return;
+    this.timer -= dt;
+    if (this.timer <= 0) {
+      m.plant[this.target] = Plant.Crop;
+      m.growth[this.target] = 0;
+      m.dirty = true;
+      this.done = true;
+    }
+  }
+}
+
+// ---------- 작업: 수확 ----------
+
+class HarvestJob extends Job {
+  label = '수확 중';
+  private timer = HARVEST_SECONDS;
+  constructor(private target: number) {
+    super();
+  }
+  update(p: Pawn, g: Game, dt: number) {
+    const m = g.map;
+    if (m.plant[this.target] !== Plant.Crop || m.growth[this.target] < 1) {
+      this.failed = true;
+      return;
+    }
+    const [tx, ty] = m.xy(this.target);
+    const move = p.goTo(g, dt, tx, ty);
+    if (move === 'blocked') { this.failed = true; return; }
+    if (move !== 'arrived') return;
+    this.timer -= dt;
+    if (this.timer <= 0) {
+      m.plant[this.target] = Plant.None;
+      m.growth[this.target] = 0;
+      m.dropItem(this.target, 'food', FOOD_PER_HARVEST);
+      m.dirty = true;
+      this.done = true;
+    }
+  }
+}
+
+// ---------- 작업: 이동 명령 ----------
+
+class MoveJob extends Job {
+  label = '이동 중';
+  constructor(private tx: number, private ty: number) {
+    super();
+  }
+  update(p: Pawn, g: Game, dt: number) {
+    const move = p.goTo(g, dt, this.tx, this.ty);
+    if (move === 'blocked') this.failed = true;
+    else if (move === 'arrived') this.done = true;
+  }
+}
+
 // ---------- 작업: 식사 ----------
 
 class EatJob extends Job {
@@ -323,10 +395,14 @@ class WanderJob extends Job {
 
 function hasUrgentWork(p: Pawn, g: Game): boolean {
   if (p.hunger < HUNGER_SEEK_FOOD || p.rest < REST_COLLAPSE) return true;
-  for (let i = 0; i < g.map.designation.length; i++) {
-    if (g.map.designation[i] !== Designation.None && !g.reserved.has(i)) return true;
+  const m = g.map;
+  for (let i = 0; i < m.designation.length; i++) {
+    if (g.reserved.has(i)) continue;
+    if (m.designation[i] !== Designation.None) return true;
+    if (m.plant[i] === Plant.Crop && m.growth[i] >= 1) return true;
+    if (m.farm[i] && m.plant[i] === Plant.None && m.walkableIdx(i)) return true;
   }
-  for (const [i] of g.map.blueprints) {
+  for (const [i] of m.blueprints) {
     if (!g.reserved.has(i)) return true;
   }
   return false;
@@ -419,7 +495,26 @@ export function findJob(p: Pawn, g: Game): Job {
     return j;
   }
 
-  // 5. 운반: 비축구역 밖 아이템 → 비축구역
+  // 5. 농사: 다 자란 작물 수확 → 빈 경작지 파종
+  const harvestIdx = bfsNearest(m, p.tileX, p.tileY, (i) =>
+    m.plant[i] === Plant.Crop && m.growth[i] >= 1 && !g.reserved.has(i) && m.walkableIdx(i),
+  );
+  if (harvestIdx !== null) {
+    const j = new HarvestJob(harvestIdx);
+    j.reserve(g, harvestIdx);
+    return j;
+  }
+  const sowIdx = bfsNearest(m, p.tileX, p.tileY, (i) =>
+    m.farm[i] === 1 && m.plant[i] === Plant.None && !g.reserved.has(i) &&
+    m.walkableIdx(i) && !m.blueprints.has(i),
+  );
+  if (sowIdx !== null) {
+    const j = new SowJob(sowIdx);
+    j.reserve(g, sowIdx);
+    return j;
+  }
+
+  // 6. 운반: 비축구역 밖 아이템 → 비축구역
   const haulSrc = bfsNearest(m, p.tileX, p.tileY, (i) => {
     if (!m.items.has(i) || m.stockpile[i] || g.reserved.has(i)) return false;
     return m.walkableIdx(i);
@@ -435,6 +530,70 @@ export function findJob(p: Pawn, g: Game): Job {
     }
   }
 
-  // 6. 할 일 없음: 배회
+  // 7. 할 일 없음: 배회
   return new WanderJob();
+}
+
+/**
+ * 우클릭 직접 명령: 대상 타일에 맞는 작업을 만들어 반환.
+ * 다른 정착민이 예약한 대상이면 null.
+ */
+export function makeForcedJob(p: Pawn, g: Game, tx: number, ty: number): Job | null {
+  const m = g.map;
+  const i = m.idx(tx, ty);
+  if (g.reserved.has(i)) return null;
+
+  // 나무 → 벌목 (지정 안 돼 있으면 자동 지정)
+  if (m.plant[i] === Plant.Tree) {
+    m.designation[i] = Designation.Chop;
+    const j = new ChopJob(i);
+    j.reserve(g, i);
+    return j;
+  }
+  // 바위 → 채굴
+  if (m.rock[i]) {
+    m.designation[i] = Designation.Mine;
+    const j = new MineJob(i);
+    j.reserve(g, i);
+    return j;
+  }
+  // 청사진 → 자재 배달 또는 건설
+  const bp = m.blueprints.get(i);
+  if (bp) {
+    if (bp.woodHas >= bp.woodNeed) {
+      const j = new ConstructJob(i);
+      j.reserve(g, i);
+      return j;
+    }
+    const src = bfsNearest(m, p.tileX, p.tileY, (k) => {
+      const s = m.items.get(k);
+      return !!s && s.type === 'wood' && !g.reserved.has(k) && m.walkableIdx(k);
+    });
+    if (src !== null) {
+      const j = new DeliverJob(src, i);
+      j.reserve(g, src);
+      j.reserve(g, i);
+      return j;
+    }
+    return null;
+  }
+  // 다 자란 작물 → 수확
+  if (m.plant[i] === Plant.Crop && m.growth[i] >= 1 && m.walkableIdx(i)) {
+    const j = new HarvestJob(i);
+    j.reserve(g, i);
+    return j;
+  }
+  // 비축구역 밖 아이템 → 운반
+  if (m.items.has(i) && !m.stockpile[i] && m.walkableIdx(i)) {
+    const dest = findStockpileDest(g, p.tileX, p.tileY, m.items.get(i)!.type);
+    if (dest !== null) {
+      const j = new HaulJob(i, dest);
+      j.reserve(g, i);
+      j.reserve(g, dest);
+      return j;
+    }
+  }
+  // 빈 통행 가능 타일 → 이동
+  if (m.walkable(tx, ty)) return new MoveJob(tx, ty);
+  return null;
 }

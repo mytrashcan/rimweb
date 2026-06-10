@@ -8,6 +8,7 @@ export const enum Plant {
   None = 0,
   Tree = 1,
   Bush = 2,
+  Crop = 3,
 }
 
 export const enum Structure {
@@ -43,4 +44,5 @@ export type Tool =
   | 'wall'
   | 'bed'
   | 'stockpile'
+  | 'farm'
   | 'cancel';

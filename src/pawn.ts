@@ -104,6 +104,14 @@ export class Pawn {
     return 'moving';
   }
 
+  /** 진행 중인 작업을 버리고 새 작업을 강제 할당 (우클릭 명령) */
+  assignForcedJob(g: Game, job: Job) {
+    if (this.job) this.job.cleanup(g);
+    this.sleeping = false;
+    this.stopMoving();
+    this.job = job;
+  }
+
   /** 현재 위치가 통행 불가가 되었을 때(벽 완공 등) 인접 칸으로 밀어내기 */
   nudgeToWalkable(g: Game) {
     if (g.map.walkable(this.tileX, this.tileY)) return;

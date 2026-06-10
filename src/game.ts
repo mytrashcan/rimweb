@@ -72,4 +72,53 @@ export class Game {
     }
     return out;
   }
+
+  // ---------- 저장 / 불러오기 ----------
+
+  save(): boolean {
+    try {
+      const data = {
+        v: 1,
+        time: this.time,
+        map: this.map.serialize(),
+        pawns: this.pawns.map((p) => ({
+          x: p.x, y: p.y, name: p.name, color: p.color,
+          hunger: p.hunger, rest: p.rest, carrying: p.carrying,
+        })),
+      };
+      localStorage.setItem('rimweb-save', JSON.stringify(data));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  load(): boolean {
+    const raw = localStorage.getItem('rimweb-save');
+    if (!raw) return false;
+    try {
+      const data = JSON.parse(raw);
+      if (data.v !== 1) return false;
+      this.time = data.time;
+      this.map.deserialize(data.map);
+      this.reserved.clear();
+      // 정착민 수는 고정이므로 인덱스로 짝지어 복원
+      const n = Math.min(this.pawns.length, data.pawns.length);
+      for (let i = 0; i < n; i++) {
+        const p = this.pawns[i];
+        const s = data.pawns[i];
+        if (p.job) p.job.cleanup(this);
+        p.job = null;
+        p.sleeping = false;
+        p.stopMoving();
+        p.x = s.x; p.y = s.y;
+        p.name = s.name; p.color = s.color;
+        p.hunger = s.hunger; p.rest = s.rest;
+        p.carrying = s.carrying;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
