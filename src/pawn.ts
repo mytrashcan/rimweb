@@ -46,6 +46,7 @@ export class Pawn {
   draftDest: { x: number; y: number } | null = null;
   attackCd = 0;
   dead = false; // 약탈자 전용: 사망/이탈 → 다음 틱에 제거
+  isRanged = false; // 약탈자 전용: 원거리 무장
   bashIdx: number | null = null; // 약탈자가 부수는 중인 벽
   repathCd = 0;
 

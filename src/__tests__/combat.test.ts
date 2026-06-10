@@ -76,6 +76,28 @@ describe('전투', () => {
     expect(p.hp).toBeGreaterThan(0);
   });
 
+  it('원거리 약탈자는 떨어진 거리에서 사격한다', () => {
+    const g = blankGame();
+    const r = addRaider(g, 16, 10);
+    r.isRanged = true;
+    run(g, 2);
+    // 근접하지 않고도 정착민이 피해를 입는다
+    expect(g.pawns.some((p) => p.hp < p.maxHp)).toBe(true);
+    const nearest = Math.min(...g.pawns.map((p) => Math.hypot(p.x - r.x, p.y - r.y)));
+    expect(nearest).toBeGreaterThan(1.5); // 근접전 거리 밖
+  });
+
+  it('원거리 약탈자도 벽에 시야가 막히면 쏘지 못한다', () => {
+    const g = blankGame();
+    const m = g.map;
+    for (let y = 5; y <= 15; y++) m.structure[m.idx(14, y)] = Structure.Wall;
+    const r = addRaider(g, 16, 10);
+    r.isRanged = true;
+    r.repathCd = 999; // 이동 봉인: 순수하게 사격 가능 여부만 본다
+    run(g, 2);
+    expect(g.pawns.every((p) => p.hp === p.maxHp)).toBe(true);
+  });
+
   it('약탈자는 체력 0에 사망 처리되어 제거된다', () => {
     const g = blankGame();
     const r = addRaider(g, 15, 10);

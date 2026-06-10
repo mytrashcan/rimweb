@@ -1,5 +1,5 @@
 import {
-  DAY_SECONDS, RAIDER_HP, COLONIST_HP,
+  DAY_SECONDS, RAIDER_HP, COLONIST_HP, RANGED_RAIDER_CHANCE,
   FIRST_RAID_TIME, RAID_INTERVAL_MIN, RAID_INTERVAL_RAND,
 } from './constants';
 import { GameMap, Structure } from './map';
@@ -87,6 +87,7 @@ export class Game {
         if (!m.walkable(sx + dx, sy + dy)) continue;
         const r = new Pawn(sx + dx, sy + dy, '약탈자', 0xd64541, 'raider');
         r.hp = r.maxHp = RAIDER_HP;
+        r.isRanged = Math.random() < RANGED_RAIDER_CHANCE;
         this.raiders.push(r);
         spawned++;
       }
@@ -142,7 +143,7 @@ export class Game {
           hp: p.hp, downed: p.downed, downTimer: p.downTimer, drafted: p.drafted,
           mood: p.mood,
         })),
-        raiders: this.raiders.map((r) => ({ x: r.x, y: r.y, hp: r.hp })),
+        raiders: this.raiders.map((r) => ({ x: r.x, y: r.y, hp: r.hp, ranged: r.isRanged })),
         nextRaidTime: this.nextRaidTime,
       };
       localStorage.setItem('rimweb-save', JSON.stringify(data));
@@ -182,10 +183,11 @@ export class Game {
         p.draftDest = null;
         p.mood = s.mood ?? 0.65;
       }
-      this.raiders = (data.raiders ?? []).map((s: { x: number; y: number; hp: number }) => {
+      this.raiders = (data.raiders ?? []).map((s: { x: number; y: number; hp: number; ranged?: boolean }) => {
         const r = new Pawn(s.x - 0.5, s.y - 0.5, '약탈자', 0xd64541, 'raider');
         r.hp = s.hp;
         r.maxHp = RAIDER_HP;
+        r.isRanged = s.ranged ?? false;
         return r;
       });
       this.nextRaidTime = data.nextRaidTime ?? this.time + FIRST_RAID_TIME * DAY_SECONDS;

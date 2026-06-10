@@ -231,6 +231,10 @@ export class Renderer {
         g.circle(0, 0, TILE * 0.46).stroke({ width: 2, color: 0xe05050, alpha: 0.95 });
       }
       g.circle(0, 0, TILE * 0.38).fill(p.color).stroke({ width: 1.5, color: 0x202428 });
+      if (p.isRanged) {
+        // 원거리 약탈자: 어깨에 멘 총신
+        g.roundRect(-TILE * 0.42, -TILE * 0.1, TILE * 0.84, 3, 1.5).fill(0x4a3826);
+      }
       if (p.sleeping) {
         g.circle(0, -TILE * 0.05, TILE * 0.38).fill({ color: 0x101418, alpha: 0.45 });
       }

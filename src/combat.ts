@@ -1,6 +1,7 @@
 import {
   SHOOT_RANGE, SHOOT_COOLDOWN, SHOOT_DAMAGE,
   MELEE_RANGE, MELEE_COOLDOWN, MELEE_DAMAGE,
+  RAIDER_SHOOT_RANGE, RAIDER_SHOOT_COOLDOWN, RAIDER_SHOOT_DAMAGE, RAIDER_HOLD_RANGE,
 } from './constants';
 import { bfsNearest } from './astar';
 import { Structure } from './map';
@@ -93,7 +94,21 @@ export function updateRaider(r: Pawn, g: Game, dt: number) {
     }
   }
 
-  if (bestD <= MELEE_RANGE) {
+  // 원거리 약탈자: 사거리 + 시야가 확보되면 멈춰서 사격
+  if (r.isRanged && bestD <= RAIDER_SHOOT_RANGE && hasLineOfSight(g, r.x, r.y, target.x, target.y)) {
+    if (r.attackCd <= 0) {
+      r.attackCd = RAIDER_SHOOT_COOLDOWN;
+      g.shots.push({ x0: r.x, y0: r.y, x1: target.x, y1: target.y, ttl: 0.15, color: 0xff8a5a });
+      target.takeDamage(g, RAIDER_SHOOT_DAMAGE * (0.7 + Math.random() * 0.6));
+    }
+    if (bestD <= RAIDER_HOLD_RANGE) {
+      r.stopMoving();
+      return; // 적당한 거리: 자리 지키며 사격
+    }
+    // 사거리 끝자락이면 쏘면서 계속 접근
+  }
+
+  if (!r.isRanged && bestD <= MELEE_RANGE) {
     if (r.attackCd <= 0) {
       r.attackCd = MELEE_COOLDOWN;
       g.shots.push({ x0: r.x, y0: r.y, x1: target.x, y1: target.y, ttl: 0.12, color: 0xd64541 });
