@@ -63,6 +63,26 @@
     .bar > div { height: 100%; transition: width 0.2s; }
     .barlabel { font-size: 11px; color: #9aa; }
 
+    #workpanel {
+      top: 48px; right: 8px;
+      background: rgba(20, 24, 28, 0.92);
+      border: 1px solid #3a4148; border-radius: 6px;
+      padding: 10px 12px; font-size: 13px; display: none;
+    }
+    #workpanel h3 { font-size: 13px; margin-bottom: 8px; color: #abc; }
+    #workpanel table { border-collapse: collapse; }
+    #workpanel th, #workpanel td {
+      padding: 4px 6px; text-align: center; font-weight: normal;
+    }
+    #workpanel th { color: #9aa; font-size: 12px; }
+    #workpanel td.name { text-align: left; padding-right: 10px; }
+    #workpanel td.cell {
+      width: 36px; cursor: pointer; border: 1px solid #3a4148; border-radius: 4px;
+      background: #232930; font-size: 13px;
+    }
+    #workpanel td.cell:hover { background: #2d3540; }
+    #workpanel .note { margin-top: 8px; font-size: 11px; color: #788; }
+
     #hint {
       bottom: 10px; left: 10px; font-size: 11px; color: #788;
       background: rgba(20, 24, 28, 0.7); padding: 6px 10px; border-radius: 6px;
@@ -76,6 +96,7 @@
   <div id="speedbar" class="hud"></div>
   <div id="toolbar" class="hud"></div>
   <div id="pawnpanel" class="hud"></div>
+  <div id="workpanel" class="hud"></div>
   <div id="hint" class="hud">
     좌클릭 드래그: 도구 적용 / 클릭: 정착민 선택<br />
     우클릭·휠클릭 드래그: 화면 이동, 휠: 줌<br />

@@ -1,6 +1,7 @@
 import { PAWN_SPEED, HUNGER_SECONDS, REST_SECONDS } from './constants';
 import { findPath } from './astar';
-import type { ItemStack } from './types';
+import type { ItemStack, WorkType } from './types';
+import { defaultPriorities } from './types';
 import type { Game } from './game';
 import type { Job } from './jobs';
 import { findJob } from './jobs';
@@ -17,6 +18,8 @@ export class Pawn {
   carrying: ItemStack | null = null;
   job: Job | null = null;
   sleeping = false;
+  /** 작업 종류별 우선순위: 1(높음)~4(낮음), 0 = 안 함 */
+  priorities: Record<WorkType, number> = defaultPriorities();
 
   private path: { x: number; y: number }[] | null = null;
   private pathGoal = '';

@@ -84,6 +84,7 @@ export class Game {
         pawns: this.pawns.map((p) => ({
           x: p.x, y: p.y, name: p.name, color: p.color,
           hunger: p.hunger, rest: p.rest, carrying: p.carrying,
+          priorities: p.priorities,
         })),
       };
       localStorage.setItem('rimweb-save', JSON.stringify(data));
@@ -115,6 +116,7 @@ export class Game {
         p.name = s.name; p.color = s.color;
         p.hunger = s.hunger; p.rest = s.rest;
         p.carrying = s.carrying;
+        if (s.priorities) p.priorities = { ...p.priorities, ...s.priorities };
       }
       return true;
     } catch {

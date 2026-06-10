@@ -1,6 +1,8 @@
 import type { Game } from './game';
-import type { Tool } from './types';
+import type { Tool, WorkType } from './types';
+import { WORK_TYPES, WORK_LABELS } from './types';
 import { uiState } from './state';
+import type { Pawn } from './pawn';
 
 const TOOLS: { id: Tool; label: string }[] = [
   { id: 'select', label: '👆 선택' },
@@ -18,8 +20,10 @@ export class UI {
   private speedbar = document.getElementById('speedbar')!;
   private toolbar = document.getElementById('toolbar')!;
   private pawnpanel = document.getElementById('pawnpanel')!;
+  private workpanel = document.getElementById('workpanel')!;
   private toolButtons = new Map<Tool, HTMLButtonElement>();
   private speedButtons: HTMLButtonElement[] = [];
+  private workCells = new Map<Pawn, Map<WorkType, HTMLTableCellElement>>();
 
   constructor(private game: Game) {
     // 도구 버튼
@@ -59,6 +63,50 @@ export class UI {
       flash(loadBtn, this.game.load() ? '✔' : '✖');
     };
     this.speedbar.append(saveBtn, loadBtn);
+    // 작업 우선순위 표 토글
+    const workBtn = document.createElement('button');
+    workBtn.textContent = '📋';
+    workBtn.title = '작업 우선순위';
+    workBtn.onclick = () => {
+      const open = this.workpanel.style.display === 'block';
+      this.workpanel.style.display = open ? 'none' : 'block';
+    };
+    this.speedbar.append(workBtn);
+    this.buildWorkPanel();
+  }
+
+  private buildWorkPanel() {
+    this.workpanel.innerHTML = '<h3>작업 우선순위</h3>';
+    const table = document.createElement('table');
+    const head = table.insertRow();
+    head.insertCell();
+    for (const wt of WORK_TYPES) {
+      const th = document.createElement('th');
+      th.textContent = WORK_LABELS[wt];
+      head.appendChild(th);
+    }
+    for (const p of this.game.pawns) {
+      const row = table.insertRow();
+      const nameCell = row.insertCell();
+      nameCell.className = 'name';
+      nameCell.textContent = p.name;
+      const cells = new Map<WorkType, HTMLTableCellElement>();
+      for (const wt of WORK_TYPES) {
+        const cell = row.insertCell();
+        cell.className = 'cell';
+        // 1 → 2 → 3 → 4 → 안 함(0) → 1 순환
+        cell.onclick = () => {
+          p.priorities[wt] = (p.priorities[wt] + 1) % 5;
+        };
+        cells.set(wt, cell);
+      }
+      this.workCells.set(p, cells);
+    }
+    this.workpanel.appendChild(table);
+    const note = document.createElement('div');
+    note.className = 'note';
+    note.textContent = '클릭으로 순환: 1(높음) → 4(낮음) → 안 함';
+    this.workpanel.appendChild(note);
   }
 
   update() {
@@ -75,6 +123,19 @@ export class UI {
     );
     for (const [id, btn] of this.toolButtons) {
       btn.classList.toggle('active', uiState.tool === id);
+    }
+
+    // 작업 우선순위 표 셀 갱신
+    if (this.workpanel.style.display === 'block') {
+      const PRIO_COLORS = ['', '#7ddc7d', '#c9d34b', '#d6a73c', '#8a93a3'];
+      for (const [pawn, cells] of this.workCells) {
+        for (const [wt, cell] of cells) {
+          const v = pawn.priorities[wt];
+          cell.textContent = v === 0 ? '–' : String(v);
+          cell.style.color = v === 0 ? '#566' : PRIO_COLORS[v];
+          cell.style.fontWeight = v === 1 ? 'bold' : 'normal';
+        }
+      }
     }
 
     const p = uiState.selected;

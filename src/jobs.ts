@@ -6,6 +6,8 @@ import {
 } from './constants';
 import { bfsNearest } from './astar';
 import { Plant, Structure, Designation } from './map';
+import { WORK_TYPES } from './types';
+import type { WorkType } from './types';
 import type { Game } from './game';
 import type { Pawn } from './pawn';
 
@@ -396,14 +398,20 @@ class WanderJob extends Job {
 function hasUrgentWork(p: Pawn, g: Game): boolean {
   if (p.hunger < HUNGER_SEEK_FOOD || p.rest < REST_COLLAPSE) return true;
   const m = g.map;
+  const wants = (wt: WorkType) => p.priorities[wt] > 0;
   for (let i = 0; i < m.designation.length; i++) {
     if (g.reserved.has(i)) continue;
-    if (m.designation[i] !== Designation.None) return true;
-    if (m.plant[i] === Plant.Crop && m.growth[i] >= 1) return true;
-    if (m.farm[i] && m.plant[i] === Plant.None && m.walkableIdx(i)) return true;
+    if (m.designation[i] === Designation.Chop && wants('chop')) return true;
+    if (m.designation[i] === Designation.Mine && wants('mine')) return true;
+    if (wants('grow')) {
+      if (m.plant[i] === Plant.Crop && m.growth[i] >= 1) return true;
+      if (m.farm[i] && m.plant[i] === Plant.None && m.walkableIdx(i)) return true;
+    }
   }
-  for (const [i] of m.blueprints) {
-    if (!g.reserved.has(i)) return true;
+  if (wants('construct')) {
+    for (const [i] of m.blueprints) {
+      if (!g.reserved.has(i)) return true;
+    }
   }
   return false;
 }
@@ -451,18 +459,11 @@ function makeSleepJob(p: Pawn, g: Game): Job {
   return j;
 }
 
-export function findJob(p: Pawn, g: Game): Job {
+// ---------- 작업 종류별 메이커 ----------
+
+function makeConstructWork(p: Pawn, g: Game): Job | null {
   const m = g.map;
-
-  // 1. 생존 욕구
-  if (p.hunger < HUNGER_SEEK_FOOD) {
-    const j = makeEatJob(p, g);
-    if (j) return j;
-  }
-  if (p.rest < REST_COLLAPSE) return makeSleepJob(p, g);
-  if (g.isNight && p.rest < NIGHT_SLEEP_REST) return makeSleepJob(p, g);
-
-  // 2. 자재 배달이 필요한 청사진
+  // 자재 배달이 필요한 청사진
   for (const [bpIdx, bp] of m.blueprints) {
     if (bp.woodHas >= bp.woodNeed || g.reserved.has(bpIdx)) continue;
     const src = bfsNearest(m, p.tileX, p.tileY, (i) => {
@@ -476,26 +477,18 @@ export function findJob(p: Pawn, g: Game): Job {
       return j;
     }
   }
-
-  // 3. 자재가 갖춰진 청사진 건설
+  // 자재가 갖춰진 청사진 시공
   for (const [bpIdx, bp] of m.blueprints) {
     if (bp.woodHas < bp.woodNeed || g.reserved.has(bpIdx)) continue;
     const j = new ConstructJob(bpIdx);
     j.reserve(g, bpIdx);
     return j;
   }
+  return null;
+}
 
-  // 4. 벌목/채굴 지정 (걸어서 닿을 수 있는 가장 가까운 것)
-  const desIdx = bfsNearest(m, p.tileX, p.tileY, (i) =>
-    m.designation[i] !== Designation.None && !g.reserved.has(i),
-  );
-  if (desIdx !== null) {
-    const j = m.designation[desIdx] === Designation.Chop ? new ChopJob(desIdx) : new MineJob(desIdx);
-    j.reserve(g, desIdx);
-    return j;
-  }
-
-  // 5. 농사: 다 자란 작물 수확 → 빈 경작지 파종
+function makeGrowWork(p: Pawn, g: Game): Job | null {
+  const m = g.map;
   const harvestIdx = bfsNearest(m, p.tileX, p.tileY, (i) =>
     m.plant[i] === Plant.Crop && m.growth[i] >= 1 && !g.reserved.has(i) && m.walkableIdx(i),
   );
@@ -513,24 +506,74 @@ export function findJob(p: Pawn, g: Game): Job {
     j.reserve(g, sowIdx);
     return j;
   }
+  return null;
+}
 
-  // 6. 운반: 비축구역 밖 아이템 → 비축구역
+function makeMineWork(p: Pawn, g: Game): Job | null {
+  const m = g.map;
+  const idx = bfsNearest(m, p.tileX, p.tileY, (i) =>
+    m.designation[i] === Designation.Mine && !g.reserved.has(i),
+  );
+  if (idx === null) return null;
+  const j = new MineJob(idx);
+  j.reserve(g, idx);
+  return j;
+}
+
+function makeChopWork(p: Pawn, g: Game): Job | null {
+  const m = g.map;
+  const idx = bfsNearest(m, p.tileX, p.tileY, (i) =>
+    m.designation[i] === Designation.Chop && !g.reserved.has(i),
+  );
+  if (idx === null) return null;
+  const j = new ChopJob(idx);
+  j.reserve(g, idx);
+  return j;
+}
+
+function makeHaulWork(p: Pawn, g: Game): Job | null {
+  const m = g.map;
   const haulSrc = bfsNearest(m, p.tileX, p.tileY, (i) => {
     if (!m.items.has(i) || m.stockpile[i] || g.reserved.has(i)) return false;
     return m.walkableIdx(i);
   });
-  if (haulSrc !== null) {
-    const stack = m.items.get(haulSrc)!;
-    const dest = findStockpileDest(g, p.tileX, p.tileY, stack.type);
-    if (dest !== null) {
-      const j = new HaulJob(haulSrc, dest);
-      j.reserve(g, haulSrc);
-      j.reserve(g, dest);
-      return j;
+  if (haulSrc === null) return null;
+  const stack = m.items.get(haulSrc)!;
+  const dest = findStockpileDest(g, p.tileX, p.tileY, stack.type);
+  if (dest === null) return null;
+  const j = new HaulJob(haulSrc, dest);
+  j.reserve(g, haulSrc);
+  j.reserve(g, dest);
+  return j;
+}
+
+const WORK_MAKERS: Record<WorkType, (p: Pawn, g: Game) => Job | null> = {
+  construct: makeConstructWork,
+  grow: makeGrowWork,
+  mine: makeMineWork,
+  chop: makeChopWork,
+  haul: makeHaulWork,
+};
+
+export function findJob(p: Pawn, g: Game): Job {
+  // 1. 생존 욕구는 항상 최우선
+  if (p.hunger < HUNGER_SEEK_FOOD) {
+    const j = makeEatJob(p, g);
+    if (j) return j;
+  }
+  if (p.rest < REST_COLLAPSE) return makeSleepJob(p, g);
+  if (g.isNight && p.rest < NIGHT_SLEEP_REST) return makeSleepJob(p, g);
+
+  // 2. 우선순위 표: 숫자 낮은 것부터, 같은 숫자면 WORK_TYPES 순서대로
+  for (let pr = 1; pr <= 4; pr++) {
+    for (const wt of WORK_TYPES) {
+      if (p.priorities[wt] !== pr) continue;
+      const j = WORK_MAKERS[wt](p, g);
+      if (j) return j;
     }
   }
 
-  // 7. 할 일 없음: 배회
+  // 3. 할 일 없음: 배회
   return new WanderJob();
 }
 
