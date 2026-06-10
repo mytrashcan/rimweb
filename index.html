@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RimWeb — 콜로니 시뮬레이터</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #14181c; }
+    body { font-family: 'Segoe UI', sans-serif; color: #d8d8d8; user-select: none; }
+    #app { position: absolute; inset: 0; }
+    #app canvas { display: block; }
+
+    .hud { position: absolute; z-index: 10; }
+
+    #topbar {
+      top: 8px; left: 8px;
+      display: flex; gap: 8px; align-items: center;
+      background: rgba(20, 24, 28, 0.85);
+      border: 1px solid #3a4148; border-radius: 6px;
+      padding: 6px 12px; font-size: 13px;
+    }
+    #topbar .res { display: flex; align-items: center; gap: 4px; }
+    #topbar .dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+    #topbar .sep { width: 1px; height: 16px; background: #3a4148; }
+
+    #speedbar {
+      top: 8px; right: 8px;
+      display: flex; gap: 4px;
+      background: rgba(20, 24, 28, 0.85);
+      border: 1px solid #3a4148; border-radius: 6px; padding: 4px;
+    }
+    #speedbar button {
+      width: 34px; height: 28px; border: 1px solid #3a4148; border-radius: 4px;
+      background: #232930; color: #d8d8d8; cursor: pointer; font-size: 13px;
+    }
+    #speedbar button.active { background: #3d6b4f; border-color: #5a9b74; }
+
+    #toolbar {
+      bottom: 10px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 4px; flex-wrap: wrap; justify-content: center;
+      max-width: calc(100vw - 20px);
+      background: rgba(20, 24, 28, 0.85);
+      border: 1px solid #3a4148; border-radius: 6px; padding: 6px;
+    }
+    #toolbar button {
+      padding: 7px 12px; border: 1px solid #3a4148; border-radius: 4px;
+      background: #232930; color: #d8d8d8; cursor: pointer; font-size: 13px;
+      white-space: nowrap;
+    }
+    #toolbar button:hover { background: #2d3540; }
+    #toolbar button.active { background: #3d5a6b; border-color: #5a8a9b; }
+
+    #pawnpanel {
+      bottom: 10px; right: 10px; width: 210px;
+      background: rgba(20, 24, 28, 0.9);
+      border: 1px solid #3a4148; border-radius: 6px;
+      padding: 10px 12px; font-size: 13px; display: none;
+    }
+    #pawnpanel h3 { font-size: 14px; margin-bottom: 6px; }
+    #pawnpanel .jobline { color: #9ab; margin-bottom: 8px; min-height: 16px; }
+    .bar { height: 12px; background: #1a1f24; border: 1px solid #3a4148; border-radius: 3px; margin: 3px 0 8px; overflow: hidden; }
+    .bar > div { height: 100%; transition: width 0.2s; }
+    .barlabel { font-size: 11px; color: #9aa; }
+
+    #hint {
+      bottom: 10px; left: 10px; font-size: 11px; color: #788;
+      background: rgba(20, 24, 28, 0.7); padding: 6px 10px; border-radius: 6px;
+      max-width: 260px; line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="topbar" class="hud"></div>
+  <div id="speedbar" class="hud"></div>
+  <div id="toolbar" class="hud"></div>
+  <div id="pawnpanel" class="hud"></div>
+  <div id="hint" class="hud">
+    좌클릭 드래그: 도구 적용 / 클릭: 정착민 선택<br />
+    우클릭·휠클릭 드래그: 화면 이동, 휠: 줌<br />
+    Space: 일시정지, 1·2·3: 배속
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
