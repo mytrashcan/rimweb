@@ -28,6 +28,14 @@ export const HARVEST_SECONDS = 2;
 export const CROP_GROW_SECONDS = 300; // 파종 → 수확까지
 export const FOOD_PER_HARVEST = 3;
 
+// 기분
+export const MOOD_BASE = 0.65;
+export const MOOD_LERP_SECONDS = 30; // 목표 기분으로 수렴하는 시간 상수
+export const MOOD_BREAK_THRESHOLD = 0.25;
+export const MOOD_BREAK_DELAY = 25; // 임계 이하로 이만큼 지속되면 멘탈 브레이크
+export const BREAK_DURATION = 30;
+export const BREAK_CATHARSIS = 0.25; // 브레이크 후 기분 회복량
+
 // 전투
 export const COLONIST_HP = 100;
 export const RAIDER_HP = 70;

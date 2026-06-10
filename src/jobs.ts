@@ -3,6 +3,7 @@ import {
   WOOD_PER_TREE, STONE_PER_ROCK, CONSTRUCT_SPEED,
   SOW_SECONDS, HARVEST_SECONDS, FOOD_PER_HARVEST, WALL_HP,
   HUNGER_SEEK_FOOD, REST_COLLAPSE, NIGHT_SLEEP_REST,
+  BREAK_DURATION, BREAK_CATHARSIS,
 } from './constants';
 import { bfsNearest } from './astar';
 import { Plant, Structure, Designation } from './map';
@@ -14,6 +15,8 @@ import type { Pawn } from './pawn';
 export abstract class Job {
   done = false;
   failed = false;
+  /** true면 강제 명령/징집으로 중단할 수 없다 (멘탈 브레이크 등) */
+  uninterruptible = false;
   abstract label: string;
   private reservedIdxs: number[] = [];
 
@@ -364,6 +367,36 @@ class SleepJob extends Job {
       p.sleeping = false;
       this.done = true;
     }
+  }
+}
+
+// ---------- 작업: 멘탈 브레이크 ----------
+
+export class BreakJob extends Job {
+  label = '멘탈 브레이크 🤯';
+  uninterruptible = true;
+  private timeLeft = BREAK_DURATION;
+  private target: { x: number; y: number } | null = null;
+  update(p: Pawn, g: Game, dt: number) {
+    this.timeLeft -= dt;
+    if (this.timeLeft <= 0) {
+      p.mood = Math.min(1, p.mood + BREAK_CATHARSIS); // 발산하고 나면 후련해진다
+      this.done = true;
+      return;
+    }
+    // 정처 없이 빠르게 배회
+    if (!this.target) {
+      for (let tries = 0; tries < 8; tries++) {
+        const tx = p.tileX + ((Math.random() * 13) | 0) - 6;
+        const ty = p.tileY + ((Math.random() * 13) | 0) - 6;
+        if (g.map.walkable(tx, ty)) {
+          this.target = { x: tx, y: ty };
+          break;
+        }
+      }
+      if (!this.target) return;
+    }
+    if (p.goTo(g, dt, this.target.x, this.target.y) !== 'moving') this.target = null;
   }
 }
 

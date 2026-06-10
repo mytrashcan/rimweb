@@ -1,14 +1,20 @@
 import {
   PAWN_SPEED, HUNGER_SECONDS, REST_SECONDS,
   COLONIST_HP, HP_REGEN, DOWNED_RECOVER_SECONDS,
+  MOOD_BASE, MOOD_LERP_SECONDS, MOOD_BREAK_THRESHOLD, MOOD_BREAK_DELAY,
 } from './constants';
 import { findPath } from './astar';
 import type { ItemStack, WorkType } from './types';
 import { defaultPriorities } from './types';
 import type { Game } from './game';
 import type { Job } from './jobs';
-import { findJob } from './jobs';
+import { findJob, BreakJob } from './jobs';
 import { updateColonistCombat, updateRaider } from './combat';
+
+export interface MoodFactor {
+  label: string;
+  value: number;
+}
 
 export type MoveResult = 'arrived' | 'moving' | 'blocked';
 export type Faction = 'colonist' | 'raider';
@@ -26,6 +32,10 @@ export class Pawn {
   sleeping = false;
   /** 작업 종류별 우선순위: 1(높음)~4(낮음), 0 = 안 함 */
   priorities: Record<WorkType, number> = defaultPriorities();
+
+  // 기분
+  mood = MOOD_BASE;
+  private lowMoodTime = 0;
 
   // 전투
   hp = COLONIST_HP;
@@ -79,9 +89,25 @@ export class Pawn {
       this.hp = Math.min(this.maxHp, this.hp + HP_REGEN * (this.sleeping ? 3 : 1) * dt);
     }
 
+    // 기분: 현재 상황이 만드는 목표치로 서서히 수렴
+    const target = this.moodTarget(g);
+    this.mood += (target - this.mood) * Math.min(1, dt / MOOD_LERP_SECONDS);
+    if (this.mood < MOOD_BREAK_THRESHOLD) this.lowMoodTime += dt;
+    else this.lowMoodTime = 0;
+    if (this.lowMoodTime >= MOOD_BREAK_DELAY && !(this.job && this.job.uninterruptible)) {
+      if (this.job) this.job.cleanup(g);
+      this.sleeping = false;
+      this.drafted = false;
+      this.draftDest = null;
+      this.stopMoving();
+      this.job = new BreakJob();
+      this.lowMoodTime = 0;
+      g.addMessage(`🤯 ${this.name}이(가) 정신적 한계에 도달했다!`);
+    }
+
     updateColonistCombat(this, g); // 사거리 내 약탈자 자동 사격
 
-    if (this.drafted) {
+    if (this.drafted && !(this.job && this.job.uninterruptible)) {
       // 징집 중에는 일하지 않고 이동 명령만 따른다
       if (this.job) {
         this.job.cleanup(g);
@@ -106,6 +132,26 @@ export class Pawn {
     } else {
       this.job = findJob(this, g);
     }
+  }
+
+  /** 현재 상황의 기분 요인 목록 (UI 표시 겸 목표치 계산) */
+  moodFactors(g: Game): MoodFactor[] {
+    const f: MoodFactor[] = [];
+    if (this.hunger <= 0) f.push({ label: '굶주림', value: -0.3 });
+    else if (this.hunger < 0.3) f.push({ label: '배고픔', value: -0.12 });
+    else if (this.hunger > 0.85) f.push({ label: '포만감', value: 0.08 });
+    if (this.rest < 0.15) f.push({ label: '탈진', value: -0.15 });
+    else if (this.rest < 0.35) f.push({ label: '피곤함', value: -0.08 });
+    else if (this.rest > 0.85) f.push({ label: '개운함', value: 0.06 });
+    if (this.hp < this.maxHp * 0.5) f.push({ label: '부상', value: -0.12 });
+    if (g.bedCount < g.pawns.length) f.push({ label: '침대 부족', value: -0.08 });
+    if (g.raiders.length > 0) f.push({ label: '습격 공포', value: -0.1 });
+    return f;
+  }
+
+  moodTarget(g: Game): number {
+    const sum = this.moodFactors(g).reduce((a, x) => a + x.value, 0);
+    return Math.max(0.05, Math.min(0.95, MOOD_BASE + sum));
   }
 
   takeDamage(g: Game, dmg: number) {
@@ -199,6 +245,7 @@ export class Pawn {
 
   /** 진행 중인 작업을 버리고 새 작업을 강제 할당 (우클릭 명령) */
   assignForcedJob(g: Game, job: Job) {
+    if (this.job && this.job.uninterruptible) return; // 멘탈 브레이크 중에는 명령 불가
     if (this.job) this.job.cleanup(g);
     this.sleeping = false;
     this.stopMoving();

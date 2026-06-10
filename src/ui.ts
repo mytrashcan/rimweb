@@ -186,11 +186,20 @@ export class UI {
     if (sel.length === 1) {
       const p = sel[0];
       const status = p.downed ? '쓰러짐 😵' : p.job ? p.job.label : p.drafted ? '징집됨 (우클릭: 이동)' : '대기 중';
+      const factors = p
+        .moodFactors(this.game)
+        .map((f) =>
+          `<span style="color:${f.value < 0 ? '#c98080' : '#80c980'}">${f.label} ${f.value > 0 ? '+' : ''}${Math.round(f.value * 100)}</span>`,
+        )
+        .join(' · ');
       return (
         `<h3>${dot(p.color)} ${p.name}</h3>` +
         `<div class="jobline">${status}</div>` +
         `<div class="barlabel">체력</div>` +
         bar(p.hp / p.maxHp, p.hp < p.maxHp * 0.3 ? '#c24545' : '#6fc46f') +
+        `<div class="barlabel">기분</div>` +
+        bar(p.mood, p.mood < 0.25 ? '#c24545' : p.mood < 0.45 ? '#d6a73c' : '#9b87d6') +
+        (factors ? `<div class="barlabel" style="margin:-4px 0 6px;line-height:1.6">${factors}</div>` : '') +
         `<div class="barlabel">포만감</div>` +
         bar(p.hunger, p.hunger < 0.3 ? '#c24545' : '#d6a73c') +
         `<div class="barlabel">휴식</div>` +

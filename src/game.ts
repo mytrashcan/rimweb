@@ -2,7 +2,7 @@ import {
   DAY_SECONDS, RAIDER_HP, COLONIST_HP,
   FIRST_RAID_TIME, RAID_INTERVAL_MIN, RAID_INTERVAL_RAND,
 } from './constants';
-import { GameMap } from './map';
+import { GameMap, Structure } from './map';
 import { Pawn } from './pawn';
 import type { Shot } from './combat';
 import type { ItemType } from './types';
@@ -23,6 +23,8 @@ export class Game {
   reserved = new Set<number>();
   raiders: Pawn[] = [];
   shots: Shot[] = [];
+  /** 침대 수 캐시 (기분 계산용, 틱마다 갱신) */
+  bedCount = 0;
   messages: { text: string; until: number }[] = [];
   nextRaidTime = FIRST_RAID_TIME * DAY_SECONDS;
 
@@ -45,6 +47,11 @@ export class Game {
       remaining -= dt;
       this.time += dt;
       this.map.update(dt);
+      let beds = 0;
+      for (let i = 0; i < this.map.structure.length; i++) {
+        if (this.map.structure[i] === Structure.Bed) beds++;
+      }
+      this.bedCount = beds;
       for (const p of this.pawns) p.update(this, dt);
       for (const r of this.raiders) r.update(this, dt);
       if (this.raiders.some((r) => r.dead)) {
@@ -133,6 +140,7 @@ export class Game {
           hunger: p.hunger, rest: p.rest, carrying: p.carrying,
           priorities: p.priorities,
           hp: p.hp, downed: p.downed, downTimer: p.downTimer, drafted: p.drafted,
+          mood: p.mood,
         })),
         raiders: this.raiders.map((r) => ({ x: r.x, y: r.y, hp: r.hp })),
         nextRaidTime: this.nextRaidTime,
@@ -172,6 +180,7 @@ export class Game {
         p.downTimer = s.downTimer ?? 0;
         p.drafted = s.drafted ?? false;
         p.draftDest = null;
+        p.mood = s.mood ?? 0.65;
       }
       this.raiders = (data.raiders ?? []).map((s: { x: number; y: number; hp: number }) => {
         const r = new Pawn(s.x - 0.5, s.y - 0.5, '약탈자', 0xd64541, 'raider');
