@@ -196,6 +196,7 @@ export class Game {
         p.drafted = s.drafted ?? false;
         p.draftDest = null;
         p.mood = s.mood ?? 0.65;
+        p.beingRescued = false;
       }
       this.raiders = (data.raiders ?? []).map((s: { x: number; y: number; hp: number; ranged?: boolean }) => {
         const r = new Pawn(s.x - 0.5, s.y - 0.5, '약탈자', 0xd64541, 'raider');

@@ -4,6 +4,7 @@ import {
   MOOD_BASE, MOOD_LERP_SECONDS, MOOD_BREAK_THRESHOLD, MOOD_BREAK_DELAY,
 } from './constants';
 import { findPath } from './astar';
+import { Structure } from './map';
 import type { ItemStack, WorkType } from './types';
 import { defaultPriorities } from './types';
 import type { Game } from './game';
@@ -42,6 +43,7 @@ export class Pawn {
   maxHp = COLONIST_HP;
   downed = false;
   downTimer = 0;
+  beingRescued = false;
   drafted = false;
   draftDest: { x: number; y: number } | null = null;
   attackCd = 0;
@@ -65,9 +67,10 @@ export class Pawn {
   get tileY() { return Math.floor(this.y); }
 
   update(g: Game, dt: number) {
-    // 쓰러진 상태: 시간이 지나면 회복해서 일어남
+    // 쓰러진 상태: 시간이 지나면 회복해서 일어남 (침대 위에서는 3배 빠르게)
     if (this.downed) {
-      this.downTimer -= dt;
+      const onBed = g.map.structure[g.map.idx(this.tileX, this.tileY)] === Structure.Bed;
+      this.downTimer -= dt * (onBed ? 3 : 1);
       if (this.downTimer <= 0) {
         this.downed = false;
         this.hp = this.maxHp * 0.4;

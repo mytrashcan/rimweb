@@ -370,6 +370,44 @@ class SleepJob extends Job {
   }
 }
 
+// ---------- 작업: 구조 (쓰러진 동료 → 침대) ----------
+
+export class RescueJob extends Job {
+  label = '구조하러 가는 중';
+  private phase: 'fetch' | 'carry' = 'fetch';
+  constructor(private target: Pawn, private bedIdx: number) {
+    super();
+    target.beingRescued = true;
+  }
+  update(p: Pawn, g: Game, dt: number) {
+    const m = g.map;
+    if (!this.target.downed) { this.done = true; return; } // 스스로 일어남
+    if (m.structure[this.bedIdx] !== Structure.Bed) { this.failed = true; return; }
+    if (this.phase === 'fetch') {
+      const move = p.goTo(g, dt, this.target.tileX, this.target.tileY);
+      if (move === 'blocked') { this.failed = true; return; }
+      if (move !== 'arrived') return;
+      this.phase = 'carry';
+      this.label = '구조 중 (업고 이동)';
+    } else {
+      // 업힌 동료는 구조자를 따라간다
+      this.target.x = p.x;
+      this.target.y = p.y;
+      const [bx, by] = m.xy(this.bedIdx);
+      const move = p.goTo(g, dt, bx, by);
+      if (move === 'blocked') { this.failed = true; return; }
+      if (move !== 'arrived') return;
+      this.target.x = bx + 0.5;
+      this.target.y = by + 0.5;
+      this.done = true;
+    }
+  }
+  cleanup(g: Game) {
+    super.cleanup(g);
+    this.target.beingRescued = false;
+  }
+}
+
 // ---------- 작업: 멘탈 브레이크 ----------
 
 export class BreakJob extends Job {
@@ -431,6 +469,7 @@ class WanderJob extends Job {
 
 function hasUrgentWork(p: Pawn, g: Game): boolean {
   if (p.hunger < HUNGER_SEEK_FOOD || p.rest < REST_COLLAPSE) return true;
+  if (g.pawns.some((o) => o !== p && o.downed && !o.beingRescued)) return true;
   const m = g.map;
   const wants = (wt: WorkType) => p.priorities[wt] > 0;
   for (let i = 0; i < m.designation.length; i++) {
@@ -598,7 +637,28 @@ export function findJob(p: Pawn, g: Game): Job {
   if (p.rest < REST_COLLAPSE) return makeSleepJob(p, g);
   if (g.isNight && p.rest < NIGHT_SLEEP_REST) return makeSleepJob(p, g);
 
-  // 2. 우선순위 표: 숫자 낮은 것부터, 같은 숫자면 WORK_TYPES 순서대로
+  // 2. 구조: 쓰러진 동료를 침대로 (인도적 의무 — 우선순위 표보다 먼저)
+  const m2 = g.map;
+  const downedMate = g.pawns.find(
+    (o) =>
+      o !== p && o.downed && !o.beingRescued &&
+      m2.structure[m2.idx(o.tileX, o.tileY)] !== Structure.Bed,
+  );
+  if (downedMate) {
+    const reachable = bfsNearest(m2, p.tileX, p.tileY,
+      (i) => i === m2.idx(downedMate.tileX, downedMate.tileY));
+    const bedIdx = reachable === null ? null : bfsNearest(m2, p.tileX, p.tileY, (i) =>
+      m2.structure[i] === Structure.Bed && !g.reserved.has(i) &&
+      !g.pawns.some((o) => m2.idx(o.tileX, o.tileY) === i), // 누가 누워 있는 침대 제외
+    );
+    if (bedIdx !== null) {
+      const j = new RescueJob(downedMate, bedIdx);
+      j.reserve(g, bedIdx);
+      return j;
+    }
+  }
+
+  // 3. 우선순위 표: 숫자 낮은 것부터, 같은 숫자면 WORK_TYPES 순서대로
   for (let pr = 1; pr <= 4; pr++) {
     for (const wt of WORK_TYPES) {
       if (p.priorities[wt] !== pr) continue;
@@ -607,7 +667,7 @@ export function findJob(p: Pawn, g: Game): Job {
     }
   }
 
-  // 3. 할 일 없음: 배회
+  // 4. 할 일 없음: 배회
   return new WanderJob();
 }
 
