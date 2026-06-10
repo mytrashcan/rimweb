@@ -1,18 +1,24 @@
-import { PAWN_SPEED, HUNGER_SECONDS, REST_SECONDS } from './constants';
+import {
+  PAWN_SPEED, HUNGER_SECONDS, REST_SECONDS,
+  COLONIST_HP, HP_REGEN, DOWNED_RECOVER_SECONDS,
+} from './constants';
 import { findPath } from './astar';
 import type { ItemStack, WorkType } from './types';
 import { defaultPriorities } from './types';
 import type { Game } from './game';
 import type { Job } from './jobs';
 import { findJob } from './jobs';
+import { updateColonistCombat, updateRaider } from './combat';
 
 export type MoveResult = 'arrived' | 'moving' | 'blocked';
+export type Faction = 'colonist' | 'raider';
 
 export class Pawn {
   x: number; // 타일 단위 좌표 (칸 중심 = x.5)
   y: number;
   name: string;
   color: number;
+  faction: Faction;
   hunger = 0.75 + Math.random() * 0.2;
   rest = 0.75 + Math.random() * 0.2;
   carrying: ItemStack | null = null;
@@ -21,22 +27,73 @@ export class Pawn {
   /** 작업 종류별 우선순위: 1(높음)~4(낮음), 0 = 안 함 */
   priorities: Record<WorkType, number> = defaultPriorities();
 
+  // 전투
+  hp = COLONIST_HP;
+  maxHp = COLONIST_HP;
+  downed = false;
+  downTimer = 0;
+  drafted = false;
+  draftDest: { x: number; y: number } | null = null;
+  attackCd = 0;
+  dead = false; // 약탈자 전용: 사망/이탈 → 다음 틱에 제거
+  bashIdx: number | null = null; // 약탈자가 부수는 중인 벽
+  repathCd = 0;
+
   private path: { x: number; y: number }[] | null = null;
   private pathGoal = '';
 
-  constructor(x: number, y: number, name: string, color: number) {
+  constructor(x: number, y: number, name: string, color: number, faction: Faction = 'colonist') {
     this.x = x + 0.5;
     this.y = y + 0.5;
     this.name = name;
     this.color = color;
+    this.faction = faction;
   }
 
   get tileX() { return Math.floor(this.x); }
   get tileY() { return Math.floor(this.y); }
 
   update(g: Game, dt: number) {
+    // 쓰러진 상태: 시간이 지나면 회복해서 일어남
+    if (this.downed) {
+      this.downTimer -= dt;
+      if (this.downTimer <= 0) {
+        this.downed = false;
+        this.hp = this.maxHp * 0.4;
+        if (this.faction === 'colonist') g.addMessage(`${this.name}이(가) 다시 일어났다.`);
+      }
+      return;
+    }
+
+    this.attackCd = Math.max(0, this.attackCd - dt);
+
+    if (this.faction === 'raider') {
+      updateRaider(this, g, dt);
+      return;
+    }
+
+    // ---- 정착민 ----
     this.hunger = Math.max(0, this.hunger - dt / HUNGER_SECONDS);
     if (!this.sleeping) this.rest = Math.max(0, this.rest - dt / REST_SECONDS);
+    if (this.hp < this.maxHp && this.hunger > 0.2) {
+      this.hp = Math.min(this.maxHp, this.hp + HP_REGEN * (this.sleeping ? 3 : 1) * dt);
+    }
+
+    updateColonistCombat(this, g); // 사거리 내 약탈자 자동 사격
+
+    if (this.drafted) {
+      // 징집 중에는 일하지 않고 이동 명령만 따른다
+      if (this.job) {
+        this.job.cleanup(g);
+        this.job = null;
+        this.sleeping = false;
+      }
+      if (this.draftDest) {
+        const r = this.goTo(g, dt, this.draftDest.x, this.draftDest.y);
+        if (r !== 'moving') this.draftDest = null;
+      }
+      return;
+    }
 
     if (this.job) {
       this.job.update(this, g, dt);
@@ -51,10 +108,43 @@ export class Pawn {
     }
   }
 
+  takeDamage(g: Game, dmg: number) {
+    this.hp -= dmg;
+    // 자다가 맞으면 깬다
+    if (this.sleeping && this.job) {
+      this.job.cleanup(g);
+      this.job = null;
+      this.sleeping = false;
+    }
+    if (this.hp > 0) return;
+    this.hp = 0;
+    if (this.faction === 'raider') {
+      this.dead = true;
+      return;
+    }
+    // 정착민은 죽지 않고 쓰러진다
+    this.downed = true;
+    this.downTimer = DOWNED_RECOVER_SECONDS;
+    if (this.job) {
+      this.job.cleanup(g);
+      this.job = null;
+    }
+    this.sleeping = false;
+    this.drafted = false;
+    this.draftDest = null;
+    this.stopMoving();
+    if (this.carrying) {
+      g.map.dropItem(g.map.idx(this.tileX, this.tileY), this.carrying.type, this.carrying.count);
+      this.carrying = null;
+    }
+    g.addMessage(`⚠ ${this.name}이(가) 쓰러졌다!`);
+  }
+
   get speed(): number {
     let s = PAWN_SPEED;
+    if (this.faction === 'raider') s *= 0.85;
     if (this.carrying) s *= 0.85;
-    if (this.hunger <= 0) s *= 0.5; // 굶주림 페널티
+    if (this.faction === 'colonist' && this.hunger <= 0) s *= 0.5; // 굶주림 페널티
     return s;
   }
 

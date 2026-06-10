@@ -1,7 +1,7 @@
 import {
   CHOP_SECONDS, MINE_SECONDS, EAT_SECONDS, BUSH_EAT_SECONDS,
   WOOD_PER_TREE, STONE_PER_ROCK, CONSTRUCT_SPEED,
-  SOW_SECONDS, HARVEST_SECONDS, FOOD_PER_HARVEST,
+  SOW_SECONDS, HARVEST_SECONDS, FOOD_PER_HARVEST, WALL_HP,
   HUNGER_SEEK_FOOD, REST_COLLAPSE, NIGHT_SLEEP_REST,
 } from './constants';
 import { bfsNearest } from './astar';
@@ -208,6 +208,7 @@ class ConstructJob extends Job {
     if (bp.workLeft <= 0) {
       m.blueprints.delete(this.bpIdx);
       m.structure[this.bpIdx] = bp.kind;
+      if (bp.kind === Structure.Wall) m.structureHp[this.bpIdx] = WALL_HP;
       m.plant[this.bpIdx] = Plant.None;
       m.dirty = true;
       if (bp.kind === Structure.Wall) {

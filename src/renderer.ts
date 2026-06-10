@@ -17,31 +17,23 @@ export class Renderer {
   private overlayG = new Graphics();
   private itemG = new Graphics();
   private pawnLayer = new Container();
+  private shotG = new Graphics();
   private nightG = new Graphics();
   private pawnViews = new Map<Pawn, PawnView>();
+  private labelStyle: TextStyle;
   /** 입력 처리에서 설정하는 드래그 영역 (타일 좌표) */
   dragRect: { x0: number; y0: number; x1: number; y1: number } | null = null;
 
   constructor(private app: Application, private game: Game) {
-    this.world.addChild(this.tileG, this.overlayG, this.itemG, this.pawnLayer);
+    this.world.addChild(this.tileG, this.overlayG, this.itemG, this.pawnLayer, this.shotG);
     app.stage.addChild(this.world, this.nightG);
 
-    const labelStyle = new TextStyle({
+    this.labelStyle = new TextStyle({
       fontFamily: 'Segoe UI, sans-serif',
       fontSize: 11,
       fill: 0xffffff,
       stroke: { color: 0x000000, width: 3 },
     });
-    for (const p of game.pawns) {
-      const root = new Container();
-      const body = new Graphics();
-      const label = new Text({ text: p.name, style: labelStyle });
-      label.anchor.set(0.5, 0);
-      label.y = TILE * 0.45;
-      root.addChild(body, label);
-      this.pawnLayer.addChild(root);
-      this.pawnViews.set(p, { root, body, label });
-    }
   }
 
   update() {
@@ -52,8 +44,32 @@ export class Renderer {
     }
     this.drawOverlay();
     this.drawItems();
+    this.syncPawnViews();
     this.drawPawns();
+    this.drawShots();
     this.drawNight();
+  }
+
+  /** 정착민 + 약탈자 뷰를 동기화 (스폰/사망 대응) */
+  private syncPawnViews() {
+    const all = new Set<Pawn>([...this.game.pawns, ...this.game.raiders]);
+    for (const p of all) {
+      if (this.pawnViews.has(p)) continue;
+      const root = new Container();
+      const body = new Graphics();
+      const label = new Text({ text: p.name, style: this.labelStyle });
+      label.anchor.set(0.5, 0);
+      label.y = TILE * 0.45;
+      root.addChild(body, label);
+      this.pawnLayer.addChild(root);
+      this.pawnViews.set(p, { root, body, label });
+    }
+    for (const [p, view] of this.pawnViews) {
+      if (!all.has(p)) {
+        view.root.destroy({ children: true });
+        this.pawnViews.delete(p);
+      }
+    }
   }
 
   private drawTiles() {
@@ -190,8 +206,22 @@ export class Renderer {
       view.root.position.set(p.x * TILE, p.y * TILE);
       const g = view.body;
       g.clear();
+
+      if (p.downed) {
+        // 쓰러진 자세: 납작한 타원
+        g.ellipse(0, TILE * 0.12, TILE * 0.42, TILE * 0.2)
+          .fill({ color: p.color, alpha: 0.65 })
+          .stroke({ width: 1, color: 0x202428 });
+        view.label.alpha = 0.5;
+        continue;
+      }
+      view.label.alpha = 1;
+
       if (uiState.selected === p) {
         g.circle(0, 0, TILE * 0.5).stroke({ width: 2, color: 0xffffff, alpha: 0.9 });
+      }
+      if (p.drafted) {
+        g.circle(0, 0, TILE * 0.46).stroke({ width: 2, color: 0xe05050, alpha: 0.95 });
       }
       g.circle(0, 0, TILE * 0.38).fill(p.color).stroke({ width: 1.5, color: 0x202428 });
       if (p.sleeping) {
@@ -201,6 +231,24 @@ export class Renderer {
         const c = p.carrying.type === 'wood' ? 0x9a6b3f : p.carrying.type === 'stone' ? 0x9b9ba3 : 0xc24545;
         g.circle(TILE * 0.28, -TILE * 0.3, TILE * 0.16).fill(c).stroke({ width: 1, color: 0x202428 });
       }
+      // 체력바 (가득이면 숨김)
+      if (p.hp < p.maxHp) {
+        const w = TILE * 0.9;
+        const frac = Math.max(0, p.hp / p.maxHp);
+        g.rect(-w / 2, -TILE * 0.62, w, 3).fill({ color: 0x101418, alpha: 0.8 });
+        g.rect(-w / 2, -TILE * 0.62, w * frac, 3)
+          .fill(frac > 0.5 ? 0x6fc46f : frac > 0.25 ? 0xd6a73c : 0xd64541);
+      }
+    }
+  }
+
+  private drawShots() {
+    const g = this.shotG;
+    g.clear();
+    for (const s of this.game.shots) {
+      g.moveTo(s.x0 * TILE, s.y0 * TILE)
+        .lineTo(s.x1 * TILE, s.y1 * TILE)
+        .stroke({ width: 2, color: s.color, alpha: Math.min(1, s.ttl / 0.1) });
     }
   }
 

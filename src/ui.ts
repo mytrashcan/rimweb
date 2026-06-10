@@ -21,9 +21,11 @@ export class UI {
   private toolbar = document.getElementById('toolbar')!;
   private pawnpanel = document.getElementById('pawnpanel')!;
   private workpanel = document.getElementById('workpanel')!;
+  private messagesEl = document.getElementById('messages')!;
   private toolButtons = new Map<Tool, HTMLButtonElement>();
   private speedButtons: HTMLButtonElement[] = [];
   private workCells = new Map<Pawn, Map<WorkType, HTMLTableCellElement>>();
+  private pawnpanelHtml = '';
 
   constructor(private game: Game) {
     // 도구 버튼
@@ -73,6 +75,16 @@ export class UI {
     };
     this.speedbar.append(workBtn);
     this.buildWorkPanel();
+    // 패널은 innerHTML로 다시 그려지므로 버튼은 위임으로 처리.
+    // click은 다시 그리는 사이에 유실될 수 있어 pointerdown 사용.
+    this.pawnpanel.addEventListener('pointerdown', (e) => {
+      const el = e.target as HTMLElement;
+      const p = uiState.selected;
+      if (el.dataset.action === 'draft' && p && !p.downed) {
+        p.drafted = !p.drafted;
+        if (!p.drafted) p.draftDest = null;
+      }
+    });
   }
 
   private buildWorkPanel() {
@@ -116,7 +128,10 @@ export class UI {
       `<span class="res"><span class="dot" style="background:#9b9ba3"></span>석재 ${res.stone}</span>` +
       `<span class="res"><span class="dot" style="background:#c24545"></span>식량 ${res.food}</span>` +
       `<span class="sep"></span>` +
-      `<span>${this.game.day}일차 ${this.game.clockText}${this.game.isNight ? ' 🌙' : ' ☀️'}</span>`;
+      `<span>${this.game.day}일차 ${this.game.clockText}${this.game.isNight ? ' 🌙' : ' ☀️'}</span>` +
+      (this.game.raiders.length > 0
+        ? `<span class="sep"></span><span style="color:#e07070">⚔ 습격 중 (${this.game.raiders.length})</span>`
+        : '');
 
     this.speedButtons.forEach((b, i) =>
       b.classList.toggle('active', this.game.speedIdx === i),
@@ -138,18 +153,33 @@ export class UI {
       }
     }
 
+    // 메시지 알림
+    const active = this.game.messages.filter((msg) => msg.until > this.game.time);
+    this.messagesEl.innerHTML = active
+      .map((msg) => `<div class="msg" style="opacity:${Math.min(1, (msg.until - this.game.time) / 3).toFixed(2)}">${msg.text}</div>`)
+      .join('');
+
     const p = uiState.selected;
     if (p) {
+      const status = p.downed ? '쓰러짐 😵' : p.job ? p.job.label : p.drafted ? '징집됨 (우클릭: 이동)' : '대기 중';
       this.pawnpanel.style.display = 'block';
-      this.pawnpanel.innerHTML =
+      const html =
         `<h3><span class="dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#${p.color.toString(16).padStart(6, '0')}"></span> ${p.name}</h3>` +
-        `<div class="jobline">${p.job ? p.job.label : '대기 중'}</div>` +
+        `<div class="jobline">${status}</div>` +
+        `<div class="barlabel">체력</div>` +
+        `<div class="bar"><div style="width:${((p.hp / p.maxHp) * 100).toFixed(0)}%;background:${p.hp < p.maxHp * 0.3 ? '#c24545' : '#6fc46f'}"></div></div>` +
         `<div class="barlabel">포만감</div>` +
         `<div class="bar"><div style="width:${(p.hunger * 100).toFixed(0)}%;background:${p.hunger < 0.3 ? '#c24545' : '#d6a73c'}"></div></div>` +
         `<div class="barlabel">휴식</div>` +
-        `<div class="bar"><div style="width:${(p.rest * 100).toFixed(0)}%;background:${p.rest < 0.15 ? '#c24545' : '#5a8ad6'}"></div></div>`;
+        `<div class="bar"><div style="width:${(p.rest * 100).toFixed(0)}%;background:${p.rest < 0.15 ? '#c24545' : '#5a8ad6'}"></div></div>` +
+        `<button data-action="draft" class="${p.drafted ? 'drafted' : ''}">${p.drafted ? '🚩 징집 해제 (R)' : '⚔ 징집 (R)'}</button>`;
+      if (html !== this.pawnpanelHtml) {
+        this.pawnpanelHtml = html;
+        this.pawnpanel.innerHTML = html;
+      }
     } else {
       this.pawnpanel.style.display = 'none';
+      this.pawnpanelHtml = '';
     }
   }
 }

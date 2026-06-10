@@ -1,4 +1,4 @@
-import { MAP_W, MAP_H, BUSH_REGROW_SECONDS, CROP_GROW_SECONDS } from './constants';
+import { MAP_W, MAP_H, BUSH_REGROW_SECONDS, CROP_GROW_SECONDS, WALL_HP } from './constants';
 import { Terrain, Plant, Structure, Designation } from './types';
 import type { Blueprint, ItemStack, ItemType } from './types';
 
@@ -10,6 +10,7 @@ export class GameMap {
   plant = new Uint8Array(MAP_W * MAP_H);
   growth = new Float32Array(MAP_W * MAP_H); // 덤불 성장도 0~1
   structure = new Uint8Array(MAP_W * MAP_H);
+  structureHp = new Float32Array(MAP_W * MAP_H);
   stockpile = new Uint8Array(MAP_W * MAP_H);
   farm = new Uint8Array(MAP_W * MAP_H);
   designation = new Uint8Array(MAP_W * MAP_H);
@@ -92,6 +93,19 @@ export class GameMap {
     return null;
   }
 
+  /** 벽에 피해. 파괴되면 true. */
+  damageWall(i: number, dmg: number): boolean {
+    if (this.structure[i] !== Structure.Wall) return false;
+    this.structureHp[i] -= dmg;
+    if (this.structureHp[i] <= 0) {
+      this.structure[i] = Structure.None;
+      this.structureHp[i] = 0;
+      this.dirty = true;
+      return true;
+    }
+    return false;
+  }
+
   /** count만큼 집어 올림. 스택이 비면 제거. 실제 가져온 수를 반환. */
   takeItem(i: number, count: number): number {
     const stack = this.items.get(i);
@@ -124,6 +138,7 @@ export class GameMap {
       plant: Array.from(this.plant),
       growth: Array.from(this.growth, (v) => Math.round(v * 1000) / 1000),
       structure: Array.from(this.structure),
+      structureHp: Array.from(this.structureHp, (v) => Math.round(v)),
       stockpile: Array.from(this.stockpile),
       farm: Array.from(this.farm),
       designation: Array.from(this.designation),
@@ -138,6 +153,13 @@ export class GameMap {
     this.plant.set(data.plant);
     this.growth.set(data.growth);
     this.structure.set(data.structure);
+    if (data.structureHp) this.structureHp.set(data.structureHp);
+    else {
+      // 구버전 세이브: 벽 체력 최대로
+      for (let i = 0; i < this.structure.length; i++) {
+        this.structureHp[i] = this.structure[i] === Structure.Wall ? WALL_HP : 0;
+      }
+    }
     this.stockpile.set(data.stockpile);
     this.farm.set(data.farm ?? []);
     this.designation.set(data.designation);

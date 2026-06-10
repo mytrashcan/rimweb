@@ -28,6 +28,22 @@ export const HARVEST_SECONDS = 2;
 export const CROP_GROW_SECONDS = 300; // 파종 → 수확까지
 export const FOOD_PER_HARVEST = 3;
 
+// 전투
+export const COLONIST_HP = 100;
+export const RAIDER_HP = 70;
+export const SHOOT_RANGE = 7; // 타일
+export const SHOOT_COOLDOWN = 1.2;
+export const SHOOT_DAMAGE = 12;
+export const MELEE_RANGE = 1.5;
+export const MELEE_COOLDOWN = 1.0;
+export const MELEE_DAMAGE = 8;
+export const WALL_HP = 100;
+export const DOWNED_RECOVER_SECONDS = 70; // 쓰러진 정착민이 다시 일어나기까지
+export const HP_REGEN = 0.6; // 초당 (수면 중엔 3배)
+export const FIRST_RAID_TIME = 1.8; // 일 단위
+export const RAID_INTERVAL_MIN = 1.2; // 일
+export const RAID_INTERVAL_RAND = 1.0;
+
 export const HUNGER_SEEK_FOOD = 0.3; // 이 밑으로 떨어지면 식사 우선
 export const REST_COLLAPSE = 0.12; // 이 밑이면 어디서든 잠
 export const NIGHT_SLEEP_REST = 0.7; // 밤이고 이 밑이면 취침
