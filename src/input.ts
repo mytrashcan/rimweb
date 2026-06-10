@@ -1,11 +1,12 @@
 import type { Application } from 'pixi.js';
 import { WALL_WOOD_COST, WALL_WORK, BED_WOOD_COST, BED_WORK } from './constants';
 import { Plant, Structure, Designation } from './map';
-import { makeForcedJob } from './jobs';
 import type { Game } from './game';
 import type { Camera } from './camera';
 import type { Renderer } from './renderer';
-import { uiState } from './state';
+import { uiState, clearSelection } from './state';
+import { applySelection, issueOrders, toggleDraftSelected, rectBounds } from './selection';
+import type { Rect } from './selection';
 
 export function setupInput(app: Application, game: Game, camera: Camera, renderer: Renderer) {
   const canvas = app.canvas;
@@ -28,10 +29,6 @@ export function setupInput(app: Application, game: Game, camera: Camera, rendere
     if (e.button === 0) {
       const t = camera.screenToTile(e.clientX, e.clientY);
       if (!game.map.inBounds(t.x, t.y)) return;
-      if (uiState.tool === 'select') {
-        selectPawnAt(game, e.clientX, e.clientY, camera);
-        return;
-      }
       dragging = true;
       dragStart = t;
       renderer.dragRect = { x0: t.x, y0: t.y, x1: t.x, y1: t.y };
@@ -56,25 +53,20 @@ export function setupInput(app: Application, game: Game, camera: Camera, rendere
   canvas.addEventListener('pointerup', (e) => {
     if (panning && (e.button === 1 || e.button === 2)) {
       panning = false;
-      // 거의 움직이지 않은 우클릭 = 선택된 정착민에게 직접 명령
+      // 거의 움직이지 않은 우클릭 = 선택된 정착민들에게 직접 명령
       const moved = Math.hypot(e.clientX - rightDownAt.x, e.clientY - rightDownAt.y);
-      if (e.button === 2 && moved < 6 && uiState.selected && !uiState.selected.downed) {
+      if (e.button === 2 && moved < 6) {
         const t = camera.screenToTile(e.clientX, e.clientY);
-        if (game.map.inBounds(t.x, t.y)) {
-          if (uiState.selected.drafted) {
-            // 징집 중에는 이동 명령만
-            if (game.map.walkable(t.x, t.y)) uiState.selected.draftDest = { x: t.x, y: t.y };
-          } else {
-            const job = makeForcedJob(uiState.selected, game, t.x, t.y);
-            if (job) uiState.selected.assignForcedJob(game, job);
-          }
-        }
+        if (game.map.inBounds(t.x, t.y)) issueOrders(game, t.x, t.y);
       }
     }
     if (dragging && e.button === 0) {
       dragging = false;
-      if (renderer.dragRect) applyTool(game, renderer.dragRect);
+      const rect = renderer.dragRect;
       renderer.dragRect = null;
+      if (!rect) return;
+      if (uiState.tool === 'select') applySelection(game, camera, rect, e.clientX, e.clientY);
+      else applyTool(game, rect);
     }
   });
 
@@ -90,37 +82,17 @@ export function setupInput(app: Application, game: Game, camera: Camera, rendere
     } else if (e.key === '1') game.speedIdx = 1;
     else if (e.key === '2') game.speedIdx = 2;
     else if (e.key === '3') game.speedIdx = 3;
-    else if (e.code === 'KeyR' && uiState.selected && !uiState.selected.downed) {
-      const p = uiState.selected;
-      p.drafted = !p.drafted;
-      if (!p.drafted) p.draftDest = null;
-    } else if (e.key === 'Escape') {
+    else if (e.code === 'KeyR') toggleDraftSelected();
+    else if (e.key === 'Escape') {
       uiState.tool = 'select';
-      uiState.selected = null;
+      clearSelection();
     }
   });
 }
 
-function selectPawnAt(game: Game, sx: number, sy: number, camera: Camera) {
-  const t = camera.screenToTile(sx, sy);
-  let best = null;
-  let bestDist = 1.2; // 타일 단위 허용 반경
-  for (const p of game.pawns) {
-    const d = Math.hypot(p.x - (t.x + 0.5), p.y - (t.y + 0.5));
-    if (d < bestDist) {
-      bestDist = d;
-      best = p;
-    }
-  }
-  uiState.selected = best;
-}
-
-function applyTool(game: Game, rect: { x0: number; y0: number; x1: number; y1: number }) {
+function applyTool(game: Game, rect: Rect) {
   const m = game.map;
-  const xa = Math.min(rect.x0, rect.x1);
-  const xb = Math.max(rect.x0, rect.x1);
-  const ya = Math.min(rect.y0, rect.y1);
-  const yb = Math.max(rect.y0, rect.y1);
+  const { xa, xb, ya, yb } = rectBounds(rect);
 
   for (let y = ya; y <= yb; y++) {
     for (let x = xa; x <= xb; x++) {

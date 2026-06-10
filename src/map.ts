@@ -2,6 +2,19 @@ import { MAP_W, MAP_H, BUSH_REGROW_SECONDS, CROP_GROW_SECONDS, WALL_HP } from '.
 import { Terrain, Plant, Structure, Designation } from './types';
 import type { Blueprint, ItemStack, ItemType } from './types';
 
+/** (cx,cy)에서 바깥으로 번지는 정사각 링 순회 (r=0 중심부터) */
+export function* spiralTiles(cx: number, cy: number, maxR: number): Generator<[number, number]> {
+  yield [cx, cy];
+  for (let r = 1; r <= maxR; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        yield [cx + dx, cy + dy];
+      }
+    }
+  }
+}
+
 export class GameMap {
   readonly w = MAP_W;
   readonly h = MAP_H;
@@ -76,19 +89,12 @@ export class GameMap {
 
   private findDropTile(i: number, type: ItemType): number | null {
     const [sx, sy] = this.xy(i);
-    for (let r = 0; r <= 6; r++) {
-      for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-          const x = sx + dx;
-          const y = sy + dy;
-          if (!this.walkable(x, y)) continue;
-          const ti = this.idx(x, y);
-          if (this.blueprints.has(ti)) continue;
-          const stack = this.items.get(ti);
-          if (!stack || stack.type === type) return ti;
-        }
-      }
+    for (const [x, y] of spiralTiles(sx, sy, 6)) {
+      if (!this.walkable(x, y)) continue;
+      const ti = this.idx(x, y);
+      if (this.blueprints.has(ti)) continue;
+      const stack = this.items.get(ti);
+      if (!stack || stack.type === type) return ti;
     }
     return null;
   }

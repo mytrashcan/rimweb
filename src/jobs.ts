@@ -278,7 +278,7 @@ class HarvestJob extends Job {
 
 // ---------- 작업: 이동 명령 ----------
 
-class MoveJob extends Job {
+export class MoveJob extends Job {
   label = '이동 중';
   constructor(private tx: number, private ty: number) {
     super();

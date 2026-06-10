@@ -167,6 +167,13 @@ export class Renderer {
         .fill(ready ? 0x7ddc7d : 0xe0c739);
     }
 
+    // 선택된 나무/바위 강조
+    for (const i of uiState.selectedTiles) {
+      const [x, y] = m.xy(i);
+      g.rect(x * TILE + 1, y * TILE + 1, TILE - 2, TILE - 2)
+        .stroke({ width: 1.5, color: 0xffffff, alpha: 0.85 });
+    }
+
     if (this.dragRect) {
       const { x0, y0, x1, y1 } = this.dragRect;
       const rx = Math.min(x0, x1) * TILE;
@@ -217,7 +224,7 @@ export class Renderer {
       }
       view.label.alpha = 1;
 
-      if (uiState.selected === p) {
+      if (uiState.selectedPawns.includes(p)) {
         g.circle(0, 0, TILE * 0.5).stroke({ width: 2, color: 0xffffff, alpha: 0.9 });
       }
       if (p.drafted) {

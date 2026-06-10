@@ -1,7 +1,8 @@
 import type { Game } from './game';
 import type { Tool, WorkType } from './types';
 import { WORK_TYPES, WORK_LABELS } from './types';
-import { uiState } from './state';
+import { uiState, clearSelection } from './state';
+import { toggleDraftSelected, designateSelectedTiles } from './selection';
 import type { Pawn } from './pawn';
 
 const TOOLS: { id: Tool; label: string }[] = [
@@ -34,7 +35,7 @@ export class UI {
       btn.textContent = t.label;
       btn.onclick = () => {
         uiState.tool = t.id;
-        if (t.id !== 'select') uiState.selected = null;
+        if (t.id !== 'select') clearSelection();
       };
       this.toolbar.appendChild(btn);
       this.toolButtons.set(t.id, btn);
@@ -61,7 +62,7 @@ export class UI {
     loadBtn.textContent = '📂';
     loadBtn.title = '불러오기';
     loadBtn.onclick = () => {
-      uiState.selected = null;
+      clearSelection();
       flash(loadBtn, this.game.load() ? '✔' : '✖');
     };
     this.speedbar.append(saveBtn, loadBtn);
@@ -79,10 +80,15 @@ export class UI {
     // click은 다시 그리는 사이에 유실될 수 있어 pointerdown 사용.
     this.pawnpanel.addEventListener('pointerdown', (e) => {
       const el = e.target as HTMLElement;
-      const p = uiState.selected;
-      if (el.dataset.action === 'draft' && p && !p.downed) {
-        p.drafted = !p.drafted;
-        if (!p.drafted) p.draftDest = null;
+      const action = el.dataset.action;
+      if (action === 'draft') {
+        toggleDraftSelected();
+      } else if (action === 'pick') {
+        // 다중 선택 목록에서 한 명 클릭 → 단독 선택
+        const p = uiState.selectedPawns[Number(el.dataset.idx)];
+        if (p) uiState.selectedPawns = [p];
+      } else if (action === 'designate') {
+        designateSelectedTiles(this.game);
       }
     });
   }
@@ -159,27 +165,74 @@ export class UI {
       .map((msg) => `<div class="msg" style="opacity:${Math.min(1, (msg.until - this.game.time) / 3).toFixed(2)}">${msg.text}</div>`)
       .join('');
 
-    const p = uiState.selected;
-    if (p) {
-      const status = p.downed ? '쓰러짐 😵' : p.job ? p.job.label : p.drafted ? '징집됨 (우클릭: 이동)' : '대기 중';
+    const html = this.buildPawnPanelHtml();
+    if (html === '') {
+      this.pawnpanel.style.display = 'none';
+      this.pawnpanelHtml = '';
+    } else {
       this.pawnpanel.style.display = 'block';
-      const html =
-        `<h3><span class="dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#${p.color.toString(16).padStart(6, '0')}"></span> ${p.name}</h3>` +
-        `<div class="jobline">${status}</div>` +
-        `<div class="barlabel">체력</div>` +
-        `<div class="bar"><div style="width:${((p.hp / p.maxHp) * 100).toFixed(0)}%;background:${p.hp < p.maxHp * 0.3 ? '#c24545' : '#6fc46f'}"></div></div>` +
-        `<div class="barlabel">포만감</div>` +
-        `<div class="bar"><div style="width:${(p.hunger * 100).toFixed(0)}%;background:${p.hunger < 0.3 ? '#c24545' : '#d6a73c'}"></div></div>` +
-        `<div class="barlabel">휴식</div>` +
-        `<div class="bar"><div style="width:${(p.rest * 100).toFixed(0)}%;background:${p.rest < 0.15 ? '#c24545' : '#5a8ad6'}"></div></div>` +
-        `<button data-action="draft" class="${p.drafted ? 'drafted' : ''}">${p.drafted ? '🚩 징집 해제 (R)' : '⚔ 징집 (R)'}</button>`;
       if (html !== this.pawnpanelHtml) {
         this.pawnpanelHtml = html;
         this.pawnpanel.innerHTML = html;
       }
-    } else {
-      this.pawnpanel.style.display = 'none';
-      this.pawnpanelHtml = '';
     }
   }
+
+  /** 선택 상태에 따른 패널 내용. 빈 문자열 = 패널 숨김 */
+  private buildPawnPanelHtml(): string {
+    const sel = uiState.selectedPawns;
+
+    // 단일 정착민: 상세 정보
+    if (sel.length === 1) {
+      const p = sel[0];
+      const status = p.downed ? '쓰러짐 😵' : p.job ? p.job.label : p.drafted ? '징집됨 (우클릭: 이동)' : '대기 중';
+      return (
+        `<h3>${dot(p.color)} ${p.name}</h3>` +
+        `<div class="jobline">${status}</div>` +
+        `<div class="barlabel">체력</div>` +
+        bar(p.hp / p.maxHp, p.hp < p.maxHp * 0.3 ? '#c24545' : '#6fc46f') +
+        `<div class="barlabel">포만감</div>` +
+        bar(p.hunger, p.hunger < 0.3 ? '#c24545' : '#d6a73c') +
+        `<div class="barlabel">휴식</div>` +
+        bar(p.rest, p.rest < 0.15 ? '#c24545' : '#5a8ad6') +
+        draftButton(p.drafted)
+      );
+    }
+
+    // 다중 정착민: 요약 목록 + 일괄 징집
+    if (sel.length > 1) {
+      const rows = sel
+        .map((p, i) =>
+          `<div class="jobline" data-action="pick" data-idx="${i}" style="cursor:pointer">` +
+          `${dot(p.color)} ${p.name} · ${Math.round(p.hp)}HP` +
+          `${p.downed ? ' 😵' : p.drafted ? ' ⚔' : ''}</div>`,
+        )
+        .join('');
+      const anyUndrafted = sel.some((p) => !p.downed && !p.drafted);
+      return `<h3>정착민 ${sel.length}명</h3>` + rows + draftButton(!anyUndrafted);
+    }
+
+    // 나무/바위 선택: 일괄 지정
+    if (uiState.selectedTiles.length > 0) {
+      const n = uiState.selectedTiles.length;
+      const tree = uiState.selectedTileKind === 'tree';
+      return (
+        `<h3>${tree ? `🌲 나무 ${n}그루` : `🪨 바위 ${n}칸`}</h3>` +
+        `<button data-action="designate">${tree ? '🪓 벌목 지정' : '⛏️ 채굴 지정'}</button>`
+      );
+    }
+    return '';
+  }
+}
+
+function dot(color: number): string {
+  return `<span class="dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#${color.toString(16).padStart(6, '0')}"></span>`;
+}
+
+function bar(frac: number, color: string): string {
+  return `<div class="bar"><div style="width:${(frac * 100).toFixed(0)}%;background:${color}"></div></div>`;
+}
+
+function draftButton(drafted: boolean): string {
+  return `<button data-action="draft" class="${drafted ? 'drafted' : ''}">${drafted ? '🚩 징집 해제 (R)' : '⚔ 징집 (R)'}</button>`;
 }
