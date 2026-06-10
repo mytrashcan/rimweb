@@ -266,6 +266,11 @@ export class Renderer {
   private drawNight() {
     const g = this.nightG;
     g.clear();
+    if (this.game.isWinter) {
+      // 겨울: 차가운 색조
+      g.rect(0, 0, this.app.screen.width, this.app.screen.height)
+        .fill({ color: 0xbcd4e8, alpha: 0.14 });
+    }
     const dark = this.game.darkness;
     if (dark > 0.01) {
       g.rect(0, 0, this.app.screen.width, this.app.screen.height)

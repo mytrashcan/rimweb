@@ -1,6 +1,7 @@
 import {
   DAY_SECONDS, RAIDER_HP, COLONIST_HP, RANGED_RAIDER_CHANCE,
   FIRST_RAID_TIME, RAID_INTERVAL_MIN, RAID_INTERVAL_RAND,
+  SEASON_DAYS, SEASONS, SEASON_GROWTH,
 } from './constants';
 import { GameMap, Structure } from './map';
 import { Pawn } from './pawn';
@@ -46,7 +47,7 @@ export class Game {
       const dt = Math.min(remaining, 0.05);
       remaining -= dt;
       this.time += dt;
-      this.map.update(dt);
+      this.map.update(dt, this.growthMult);
       let beds = 0;
       for (let i = 0; i < this.map.structure.length; i++) {
         if (this.map.structure[i] === Structure.Bed) beds++;
@@ -103,6 +104,19 @@ export class Game {
   get day(): number {
     return Math.floor(this.time / DAY_SECONDS) + 1;
   }
+  get seasonIdx(): number {
+    return Math.floor((this.day - 1) / SEASON_DAYS) % SEASONS.length;
+  }
+  get seasonName(): string {
+    return SEASONS[this.seasonIdx];
+  }
+  get isWinter(): boolean {
+    return this.seasonIdx === 3;
+  }
+  get growthMult(): number {
+    return SEASON_GROWTH[this.seasonIdx];
+  }
+
   get isNight(): boolean {
     const t = this.timeOfDay;
     return t < 0.22 || t > 0.87;

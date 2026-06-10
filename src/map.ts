@@ -64,14 +64,16 @@ export class GameMap {
     );
   }
 
-  update(dt: number) {
+  /** @param growthMult 계절별 성장 배율 (겨울 0) */
+  update(dt: number, growthMult = 1) {
+    if (growthMult <= 0) return;
     // 덤불 재성장 + 작물 성장
     for (let i = 0; i < this.plant.length; i++) {
       if (this.plant[i] === Plant.Bush && this.growth[i] < 1) {
-        this.growth[i] = Math.min(1, this.growth[i] + dt / BUSH_REGROW_SECONDS);
+        this.growth[i] = Math.min(1, this.growth[i] + (growthMult * dt) / BUSH_REGROW_SECONDS);
       } else if (this.plant[i] === Plant.Crop && this.growth[i] < 1) {
         const before = this.growth[i];
-        this.growth[i] = Math.min(1, this.growth[i] + dt / CROP_GROW_SECONDS);
+        this.growth[i] = Math.min(1, this.growth[i] + (growthMult * dt) / CROP_GROW_SECONDS);
         // 성장 단계가 바뀔 때만 다시 그리기 (4단계)
         if (((before * 4) | 0) !== ((this.growth[i] * 4) | 0)) this.dirty = true;
       }

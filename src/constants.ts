@@ -3,6 +3,10 @@ export const MAP_W = 64;
 export const MAP_H = 64;
 
 export const DAY_SECONDS = 240; // 게임 내 하루 = 1배속 기준 4분
+export const SEASON_DAYS = 3; // 계절당 일수
+export const SEASONS = ['🌱 봄', '☀️ 여름', '🍂 가을', '❄️ 겨울'] as const;
+/** 계절별 작물/덤불 성장 배율 (겨울엔 자라지 않는다) */
+export const SEASON_GROWTH = [1, 1.2, 0.7, 0] as const;
 export const HUNGER_SECONDS = 260; // 만복 → 굶주림까지 걸리는 시간
 export const REST_SECONDS = 420; // 완전 휴식 → 탈진까지 걸리는 시간
 

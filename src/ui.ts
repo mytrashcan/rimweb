@@ -134,7 +134,7 @@ export class UI {
       `<span class="res"><span class="dot" style="background:#9b9ba3"></span>석재 ${res.stone}</span>` +
       `<span class="res"><span class="dot" style="background:#c24545"></span>식량 ${res.food}</span>` +
       `<span class="sep"></span>` +
-      `<span>${this.game.day}일차 ${this.game.clockText}${this.game.isNight ? ' 🌙' : ' ☀️'}</span>` +
+      `<span>${this.game.seasonName} ${this.game.day}일차 ${this.game.clockText}${this.game.isNight ? ' 🌙' : ''}</span>` +
       (this.game.raiders.length > 0
         ? `<span class="sep"></span><span style="color:#e07070">⚔ 습격 중 (${this.game.raiders.length})</span>`
         : '');
