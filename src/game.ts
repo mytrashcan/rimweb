@@ -246,7 +246,7 @@ export class Game {
           hunger: p.hunger, rest: p.rest, carrying: p.carrying,
           priorities: p.priorities,
           hp: p.hp, downed: p.downed, downTimer: p.downTimer, drafted: p.drafted,
-          mood: p.mood,
+          mood: p.mood, weapon: p.weapon,
         })),
         raiders: this.raiders.map((r) => ({ x: r.x, y: r.y, hp: r.hp, ranged: r.isRanged })),
         animals: this.animals.map((a) => ({ x: a.x, y: a.y, hp: a.hp, hunted: a.hunted })),
@@ -275,6 +275,7 @@ export class Game {
         hunger: number; rest: number; carrying: Pawn['carrying'];
         priorities?: Pawn['priorities']; hp?: number; downed?: boolean;
         downTimer?: number; drafted?: boolean; mood?: number;
+        weapon?: Pawn['weapon'];
       }
       this.pawns = (data.pawns as SavedPawn[]).map((s) => {
         const p = new Pawn(s.x - 0.5, s.y - 0.5, s.name, s.color);
@@ -287,6 +288,7 @@ export class Game {
         p.downTimer = s.downTimer ?? 0;
         p.drafted = s.drafted ?? false;
         p.mood = s.mood ?? 0.65;
+        p.weapon = s.weapon ?? null;
         return p;
       });
       this.raiders = (data.raiders ?? []).map((s: { x: number; y: number; hp: number; ranged?: boolean }) => {

@@ -1,5 +1,6 @@
 import {
   SHOOT_RANGE, SHOOT_COOLDOWN, SHOOT_DAMAGE,
+  RIFLE_RANGE, RIFLE_DAMAGE,
   MELEE_RANGE, MELEE_COOLDOWN, MELEE_DAMAGE,
   RAIDER_SHOOT_RANGE, RAIDER_SHOOT_COOLDOWN, RAIDER_SHOOT_DAMAGE, RAIDER_HOLD_RANGE,
 } from './constants';
@@ -31,11 +32,19 @@ export function hasLineOfSight(g: Game, x0: number, y0: number, x1: number, y1: 
   return true;
 }
 
+/** 무기에 따른 사거리/피해 */
+export function shootRange(p: Pawn): number {
+  return p.weapon === 'rifle' ? RIFLE_RANGE : SHOOT_RANGE;
+}
+export function shootDamage(p: Pawn): number {
+  return p.weapon === 'rifle' ? RIFLE_DAMAGE : SHOOT_DAMAGE;
+}
+
 /** 정착민: 사거리 + 시야 내 가장 가까운 약탈자를 자동 사격 */
 export function updateColonistCombat(p: Pawn, g: Game) {
   if (p.sleeping || p.attackCd > 0) return;
   let best: Pawn | null = null;
-  let bestD = SHOOT_RANGE;
+  let bestD = shootRange(p);
   for (const r of g.raiders) {
     if (r.dead || r.downed) continue;
     const d = Math.hypot(r.x - p.x, r.y - p.y);
@@ -47,7 +56,7 @@ export function updateColonistCombat(p: Pawn, g: Game) {
   if (!best) return;
   p.attackCd = SHOOT_COOLDOWN;
   g.shots.push({ x0: p.x, y0: p.y, x1: best.x, y1: best.y, ttl: 0.15, color: 0xffe08a });
-  best.takeDamage(g, SHOOT_DAMAGE * (0.7 + Math.random() * 0.6));
+  best.takeDamage(g, shootDamage(p) * (0.7 + Math.random() * 0.6));
 }
 
 /** 약탈자: 가장 가까운 정착민에게 근접 공격, 막히면 벽을 부순다 */

@@ -233,6 +233,9 @@ export class Renderer {
       } else if (stack.type === 'stone') {
         g.circle(px + TILE / 2, py + TILE / 2 + 2, TILE * 0.26).fill(0x9b9ba3);
         g.circle(px + TILE / 2 - 3, py + TILE / 2 - 2, TILE * 0.16).fill(0x86868e);
+      } else if (stack.type === 'rifle') {
+        g.roundRect(px + 2, py + TILE / 2 - 1, TILE - 4, 3, 1.5).fill(0x4a3826);
+        g.roundRect(px + 3, py + TILE / 2 - 4, 5, 4, 1).fill(0x6b4f30); // 개머리판
       } else if (stack.type === 'meal') {
         // 접시에 담긴 요리
         g.circle(px + TILE / 2, py + TILE / 2, TILE * 0.3).fill(0xe8e0d0);
@@ -278,9 +281,10 @@ export class Renderer {
         g.circle(-bodyR * 0.7, -bodyR * 0.8, bodyR * 0.32).fill(0x8a6b48);
         g.circle(bodyR * 0.7, -bodyR * 0.8, bodyR * 0.32).fill(0x8a6b48);
       }
-      if (p.isRanged) {
-        // 원거리 약탈자: 어깨에 멘 총신
+      if (p.isRanged || p.weapon === 'rifle') {
+        // 어깨에 멘 총신
         g.roundRect(-TILE * 0.42, -TILE * 0.1, TILE * 0.84, 3, 1.5).fill(0x4a3826);
+        g.roundRect(TILE * 0.1, -TILE * 0.16, TILE * 0.26, 2, 1).fill(0x2e2620);
       }
       if (p.sleeping) {
         g.circle(0, -TILE * 0.05, TILE * 0.38).fill({ color: 0x101418, alpha: 0.45 });

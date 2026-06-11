@@ -4,11 +4,11 @@ import {
   SOW_SECONDS, HARVEST_SECONDS, FOOD_PER_HARVEST, WALL_HP,
   HUNGER_SEEK_FOOD, REST_COLLAPSE, NIGHT_SLEEP_REST,
   BREAK_DURATION, BREAK_CATHARSIS,
-  SHOOT_RANGE, SHOOT_COOLDOWN, SHOOT_DAMAGE,
+  SHOOT_COOLDOWN,
   COOK_SECONDS, COOK_RAW_NEEDED, MEAL_HUNGER, RAW_HUNGER, MEAL_MOOD_SECONDS,
   FIRE_BEAT_RATE,
 } from './constants';
-import { hasLineOfSight } from './combat';
+import { hasLineOfSight, shootRange, shootDamage } from './combat';
 import { bfsNearest } from './astar';
 import { Plant, Structure, Designation } from './map';
 import { WORK_TYPES } from './types';
@@ -442,6 +442,28 @@ class SleepJob extends Job {
   }
 }
 
+// ---------- 작업: 무기 장착 ----------
+
+class EquipJob extends Job {
+  label = '무기 챙기는 중';
+  constructor(private target: number) {
+    super();
+  }
+  update(p: Pawn, g: Game, dt: number) {
+    const m = g.map;
+    const stack = m.items.get(this.target);
+    if (!stack || stack.type !== 'rifle') { this.failed = true; return; }
+    const [tx, ty] = m.xy(this.target);
+    const move = p.goTo(g, dt, tx, ty);
+    if (move === 'blocked') { this.failed = true; return; }
+    if (move !== 'arrived') return;
+    if (m.takeItem(this.target, 1) === 0) { this.failed = true; return; }
+    p.weapon = 'rifle';
+    g.addMessage(`🔫 ${p.name}이(가) 소총을 장착했다.`);
+    this.done = true;
+  }
+}
+
 // ---------- 작업: 화재 진압 ----------
 
 class BeatFireJob extends Job {
@@ -475,12 +497,12 @@ export class HuntJob extends Job {
     if (t.dead) { this.done = true; return; }
     if (!t.hunted) { this.failed = true; return; }
     const d = Math.hypot(t.x - p.x, t.y - p.y);
-    if (d <= SHOOT_RANGE - 0.5 && hasLineOfSight(g, p.x, p.y, t.x, t.y)) {
+    if (d <= shootRange(p) - 0.5 && hasLineOfSight(g, p.x, p.y, t.x, t.y)) {
       p.stopMoving();
       if (p.attackCd <= 0) {
         p.attackCd = SHOOT_COOLDOWN;
         g.shots.push({ x0: p.x, y0: p.y, x1: t.x, y1: t.y, ttl: 0.15, color: 0xffe08a });
-        t.takeDamage(g, SHOOT_DAMAGE * (0.7 + Math.random() * 0.6));
+        t.takeDamage(g, shootDamage(p) * (0.7 + Math.random() * 0.6));
       }
       return;
     }
@@ -821,7 +843,21 @@ export function findJob(p: Pawn, g: Game): Job {
     }
   }
 
-  // 4. 우선순위 표: 숫자 낮은 것부터, 같은 숫자면 WORK_TYPES 순서대로
+  // 4. 무장: 빈손이면 떨어진 소총을 줍는다
+  if (!p.weapon) {
+    const m3 = g.map;
+    const rifleIdx = bfsNearest(m3, p.tileX, p.tileY, (i) => {
+      const s = m3.items.get(i);
+      return !!s && s.type === 'rifle' && !g.reserved.has(i) && m3.walkableIdx(i);
+    });
+    if (rifleIdx !== null) {
+      const j = new EquipJob(rifleIdx);
+      j.reserve(g, rifleIdx);
+      return j;
+    }
+  }
+
+  // 5. 우선순위 표: 숫자 낮은 것부터, 같은 숫자면 WORK_TYPES 순서대로
   for (let pr = 1; pr <= 4; pr++) {
     for (const wt of WORK_TYPES) {
       if (p.priorities[wt] !== pr) continue;
@@ -830,7 +866,7 @@ export function findJob(p: Pawn, g: Game): Job {
     }
   }
 
-  // 5. 할 일 없음: 배회
+  // 6. 할 일 없음: 배회
   return new WanderJob();
 }
 

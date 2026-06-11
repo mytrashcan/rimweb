@@ -24,7 +24,7 @@ export const enum Designation {
   Mine = 2,
 }
 
-export type ItemType = 'wood' | 'stone' | 'food' | 'meal';
+export type ItemType = 'wood' | 'stone' | 'food' | 'meal' | 'rifle';
 
 export interface ItemStack {
   type: ItemType;

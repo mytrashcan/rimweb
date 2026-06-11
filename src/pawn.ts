@@ -12,7 +12,7 @@ import type { Job } from './jobs';
 import { findJob, BreakJob } from './jobs';
 import { updateColonistCombat, updateRaider } from './combat';
 import { updateAnimal } from './animals';
-import { MEAT_PER_ANIMAL, ANIMAL_FLEE_SECONDS } from './constants';
+import { MEAT_PER_ANIMAL, ANIMAL_FLEE_SECONDS, RIFLE_DROP_CHANCE } from './constants';
 
 export interface MoodFactor {
   label: string;
@@ -42,6 +42,8 @@ export class Pawn {
   /** 최근 식사 품질: +1 요리, -1 생식, 0 없음 */
   mealMood = 0;
   mealMoodTimer = 0;
+  /** 장착 무기 (정착민 전용) */
+  weapon: 'rifle' | null = null;
 
   // 전투
   hp = COLONIST_HP;
@@ -195,6 +197,9 @@ export class Pawn {
     this.hp = 0;
     if (this.faction === 'raider') {
       this.dead = true;
+      if (this.isRanged && Math.random() < RIFLE_DROP_CHANCE) {
+        g.map.dropItem(g.map.idx(this.tileX, this.tileY), 'rifle', 1); // 전리품
+      }
       return;
     }
     if (this.faction === 'animal') {
