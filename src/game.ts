@@ -9,6 +9,7 @@ import { makeAnimal } from './animals';
 import {
   MAX_ANIMALS, ANIMAL_HP, MAX_COLONISTS,
   FIRST_JOIN_TIME, JOIN_INTERVAL_MIN, JOIN_INTERVAL_RAND,
+  FIRE_DAMAGE_PER_SEC, FIRST_LIGHTNING_TIME, LIGHTNING_INTERVAL_MIN, LIGHTNING_INTERVAL_RAND,
 } from './constants';
 import type { Shot } from './combat';
 import type { ItemType } from './types';
@@ -44,6 +45,7 @@ export class Game {
   bedCount = 0;
   private nextAnimalCheck = DAY_SECONDS;
   nextJoinTime = FIRST_JOIN_TIME * DAY_SECONDS;
+  nextLightningTime = FIRST_LIGHTNING_TIME * DAY_SECONDS;
   messages: { text: string; until: number }[] = [];
   nextRaidTime = FIRST_RAID_TIME * DAY_SECONDS;
 
@@ -100,6 +102,16 @@ export class Game {
       }
       if (this.time >= this.nextRaidTime) this.spawnRaid();
       if (this.time >= this.nextJoinTime) this.tryJoinWanderer();
+      if (this.time >= this.nextLightningTime) this.strikeLightning();
+      // 화재: 확산 + 불 위에 서 있는 모든 생명체 피해
+      if (this.map.updateFire(dt)) {
+        for (const e of [...this.pawns, ...this.raiders, ...this.animals]) {
+          if (e.downed || e.dead) continue;
+          if (this.map.fire[this.map.idx(e.tileX, e.tileY)] > 0.4) {
+            e.takeDamage(this, FIRE_DAMAGE_PER_SEC * dt);
+          }
+        }
+      }
       for (const s of this.shots) s.ttl -= dt;
       this.shots = this.shots.filter((s) => s.ttl > 0);
     }
@@ -120,6 +132,22 @@ export class Game {
       if (m.walkable(x, y)) return { x, y };
     }
     return null;
+  }
+
+  /** 번개 이벤트: 가연물에 떨어지면 화재 발생 */
+  strikeLightning() {
+    this.nextLightningTime =
+      this.time + (LIGHTNING_INTERVAL_MIN + Math.random() * LIGHTNING_INTERVAL_RAND) * DAY_SECONDS;
+    const m = this.map;
+    for (let tries = 0; tries < 30; tries++) {
+      const i = (Math.random() * m.fire.length) | 0;
+      if (m.flammable(i) && m.fire[i] <= 0) {
+        m.fire[i] = 0.3;
+        this.addMessage('⚡ 번개가 떨어져 불이 붙었다!');
+        return;
+      }
+    }
+    // 가연물에 안 맞음: 마른 번개
   }
 
   /** 방랑자 합류 이벤트: 가장자리에서 새 정착민이 걸어 들어온다 */

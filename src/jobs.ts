@@ -6,6 +6,7 @@ import {
   BREAK_DURATION, BREAK_CATHARSIS,
   SHOOT_RANGE, SHOOT_COOLDOWN, SHOOT_DAMAGE,
   COOK_SECONDS, COOK_RAW_NEEDED, MEAL_HUNGER, RAW_HUNGER, MEAL_MOOD_SECONDS,
+  FIRE_BEAT_RATE,
 } from './constants';
 import { hasLineOfSight } from './combat';
 import { bfsNearest } from './astar';
@@ -441,6 +442,26 @@ class SleepJob extends Job {
   }
 }
 
+// ---------- 작업: 화재 진압 ----------
+
+class BeatFireJob extends Job {
+  label = '화재 진압 중';
+  constructor(private target: number) {
+    super();
+  }
+  update(p: Pawn, g: Game, dt: number) {
+    const m = g.map;
+    if (m.fire[this.target] <= 0) { this.done = true; return; }
+    const [tx, ty] = m.xy(this.target);
+    // 불 위에 서지 않도록 인접 칸에서 두드려 끈다
+    const move = p.goTo(g, dt, tx, ty, true);
+    if (move === 'blocked') { this.failed = true; return; }
+    if (move !== 'arrived') return;
+    m.fire[this.target] = Math.max(0, m.fire[this.target] - FIRE_BEAT_RATE * dt);
+    if (m.fire[this.target] <= 0) this.done = true;
+  }
+}
+
 // ---------- 작업: 사냥 ----------
 
 export class HuntJob extends Job {
@@ -570,6 +591,7 @@ class WanderJob extends Job {
 
 function hasUrgentWork(p: Pawn, g: Game): boolean {
   if (p.hunger < HUNGER_SEEK_FOOD || p.rest < REST_COLLAPSE) return true;
+  if (g.map.fire.some((v) => v > 0)) return true;
   if (g.pawns.some((o) => o !== p && o.downed && !o.beingRescued)) return true;
   if (p.priorities.hunt > 0 && g.animals.some((a) => !a.dead && a.hunted && !a.targeted)) return true;
   const m = g.map;
@@ -769,7 +791,16 @@ export function findJob(p: Pawn, g: Game): Job {
   if (p.rest < REST_COLLAPSE) return makeSleepJob(p, g);
   if (g.isNight && p.rest < NIGHT_SLEEP_REST) return makeSleepJob(p, g);
 
-  // 2. 구조: 쓰러진 동료를 침대로 (인도적 의무 — 우선순위 표보다 먼저)
+  // 2. 화재 진압: 모든 작업보다 우선 (콜로니가 불타면 끝장이다)
+  const m1 = g.map;
+  const fireIdx = bfsNearest(m1, p.tileX, p.tileY, (i) => m1.fire[i] > 0 && !g.reserved.has(i));
+  if (fireIdx !== null) {
+    const j = new BeatFireJob(fireIdx);
+    j.reserve(g, fireIdx);
+    return j;
+  }
+
+  // 3. 구조: 쓰러진 동료를 침대로 (인도적 의무 — 우선순위 표보다 먼저)
   const m2 = g.map;
   const downedMate = g.pawns.find(
     (o) =>
@@ -790,7 +821,7 @@ export function findJob(p: Pawn, g: Game): Job {
     }
   }
 
-  // 3. 우선순위 표: 숫자 낮은 것부터, 같은 숫자면 WORK_TYPES 순서대로
+  // 4. 우선순위 표: 숫자 낮은 것부터, 같은 숫자면 WORK_TYPES 순서대로
   for (let pr = 1; pr <= 4; pr++) {
     for (const wt of WORK_TYPES) {
       if (p.priorities[wt] !== pr) continue;
@@ -799,7 +830,7 @@ export function findJob(p: Pawn, g: Game): Job {
     }
   }
 
-  // 4. 할 일 없음: 배회
+  // 5. 할 일 없음: 배회
   return new WanderJob();
 }
 

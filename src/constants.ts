@@ -41,6 +41,15 @@ export const HARVEST_SECONDS = 2;
 export const CROP_GROW_SECONDS = 300; // 파종 → 수확까지
 export const FOOD_PER_HARVEST = 3;
 
+// 화재
+export const FIRE_GROW_RATE = 0.12; // 초당 화세 증가 (1이 되면 연료 소실)
+export const FIRE_SPREAD_CHANCE = 0.2; // 초당 인접 가연물 점화 확률
+export const FIRE_BEAT_RATE = 0.6; // 초당 진압량
+export const FIRE_DAMAGE_PER_SEC = 8; // 불 위에 서 있을 때
+export const FIRST_LIGHTNING_TIME = 1.2; // 일 단위
+export const LIGHTNING_INTERVAL_MIN = 1.5; // 일
+export const LIGHTNING_INTERVAL_RAND = 2;
+
 // 인구
 export const MAX_COLONISTS = 6;
 export const FIRST_JOIN_TIME = 2.5; // 일 단위

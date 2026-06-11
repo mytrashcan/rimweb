@@ -17,6 +17,7 @@ export class Renderer {
   private overlayG = new Graphics();
   private itemG = new Graphics();
   private pawnLayer = new Container();
+  private fireG = new Graphics();
   private shotG = new Graphics();
   private nightG = new Graphics();
   private pawnViews = new Map<Pawn, PawnView>();
@@ -25,7 +26,7 @@ export class Renderer {
   dragRect: { x0: number; y0: number; x1: number; y1: number } | null = null;
 
   constructor(private app: Application, private game: Game) {
-    this.world.addChild(this.tileG, this.overlayG, this.itemG, this.pawnLayer, this.shotG);
+    this.world.addChild(this.tileG, this.overlayG, this.itemG, this.pawnLayer, this.fireG, this.shotG);
     app.stage.addChild(this.world, this.nightG);
 
     this.labelStyle = new TextStyle({
@@ -46,8 +47,36 @@ export class Renderer {
     this.drawItems();
     this.syncPawnViews();
     this.drawPawns();
+    this.drawFire();
     this.drawShots();
     this.drawNight();
+  }
+
+  private drawFire() {
+    const m = this.game.map;
+    const g = this.fireG;
+    g.clear();
+    const t = this.game.time;
+    for (let i = 0; i < m.fire.length; i++) {
+      const f = m.fire[i];
+      if (f <= 0) continue;
+      const x = (i % m.w) * TILE;
+      const y = ((i / m.w) | 0) * TILE;
+      const flicker = 0.8 + 0.2 * Math.sin(t * 12 + i * 1.7);
+      const h = TILE * (0.35 + 0.5 * Math.min(1, f)) * flicker;
+      // 바깥 불꽃
+      g.poly([
+        x + TILE * 0.2, y + TILE * 0.9,
+        x + TILE * 0.5, y + TILE * 0.9 - h,
+        x + TILE * 0.8, y + TILE * 0.9,
+      ]).fill({ color: 0xe06520, alpha: 0.85 });
+      // 속불꽃
+      g.poly([
+        x + TILE * 0.33, y + TILE * 0.88,
+        x + TILE * 0.5, y + TILE * 0.88 - h * 0.55,
+        x + TILE * 0.67, y + TILE * 0.88,
+      ]).fill({ color: 0xf0c040, alpha: 0.9 });
+    }
   }
 
   /** 정착민 + 약탈자 뷰를 동기화 (스폰/사망 대응) */

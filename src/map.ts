@@ -1,4 +1,7 @@
-import { MAP_W, MAP_H, BUSH_REGROW_SECONDS, CROP_GROW_SECONDS, WALL_HP } from './constants';
+import {
+  MAP_W, MAP_H, BUSH_REGROW_SECONDS, CROP_GROW_SECONDS, WALL_HP,
+  FIRE_GROW_RATE, FIRE_SPREAD_CHANCE,
+} from './constants';
 import { Terrain, Plant, Structure, Designation } from './types';
 import type { Blueprint, ItemStack, ItemType } from './types';
 
@@ -27,6 +30,8 @@ export class GameMap {
   stockpile = new Uint8Array(MAP_W * MAP_H);
   farm = new Uint8Array(MAP_W * MAP_H);
   designation = new Uint8Array(MAP_W * MAP_H);
+  /** 화세 0~1: 1에 도달하면 연료가 타 없어진다 */
+  fire = new Float32Array(MAP_W * MAP_H);
   baseColor = new Uint32Array(MAP_W * MAP_H);
   blueprints = new Map<number, Blueprint>();
   items = new Map<number, ItemStack>();
@@ -101,6 +106,58 @@ export class GameMap {
     return null;
   }
 
+  /** 불이 붙을 수 있는 타일: 식물, 목조 구조물(벽·침대), 타는 아이템 */
+  flammable(i: number): boolean {
+    if (this.terrain[i] === Terrain.Water || this.rock[i]) return false;
+    if (this.plant[i] !== Plant.None) return true;
+    if (this.structure[i] === Structure.Wall || this.structure[i] === Structure.Bed) return true;
+    const s = this.items.get(i);
+    return !!s && s.type !== 'stone';
+  }
+
+  /** 화재 확산/연소. 한 타일이라도 타고 있으면 true. */
+  updateFire(dt: number): boolean {
+    let any = false;
+    for (let i = 0; i < this.fire.length; i++) {
+      if (this.fire[i] <= 0) continue;
+      any = true;
+      if (!this.flammable(i)) {
+        this.fire[i] = Math.max(0, this.fire[i] - dt * 0.5); // 탈 것이 없으면 사그라듦
+        continue;
+      }
+      this.fire[i] += dt * FIRE_GROW_RATE;
+      // 인접 가연물로 번짐
+      if (this.fire[i] > 0.4) {
+        const x = i % this.w;
+        const y = (i / this.w) | 0;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          if (!this.inBounds(x + dx, y + dy)) continue;
+          const ni = this.idx(x + dx, y + dy);
+          if (this.fire[ni] <= 0 && this.flammable(ni) && Math.random() < FIRE_SPREAD_CHANCE * dt) {
+            this.fire[ni] = 0.2;
+          }
+        }
+      }
+      // 다 탔다: 연료 소실, 땅은 그을린 흙으로
+      if (this.fire[i] >= 1) {
+        this.fire[i] = 0;
+        this.plant[i] = Plant.None;
+        this.growth[i] = 0;
+        this.designation[i] = Designation.None;
+        if (this.structure[i] === Structure.Wall || this.structure[i] === Structure.Bed) {
+          this.structure[i] = Structure.None;
+          this.structureHp[i] = 0;
+        }
+        const s = this.items.get(i);
+        if (s && s.type !== 'stone') this.items.delete(i);
+        if (this.terrain[i] === Terrain.Grass) this.terrain[i] = Terrain.Dirt;
+        this.recomputeColors();
+        this.dirty = true;
+      }
+    }
+    return any;
+  }
+
   /** 벽에 피해. 파괴되면 true. */
   damageWall(i: number, dmg: number): boolean {
     if (this.structure[i] !== Structure.Wall) return false;
@@ -150,6 +207,7 @@ export class GameMap {
       stockpile: Array.from(this.stockpile),
       farm: Array.from(this.farm),
       designation: Array.from(this.designation),
+      fire: Array.from(this.fire, (v) => Math.round(v * 100) / 100),
       blueprints: [...this.blueprints.entries()],
       items: [...this.items.entries()],
     };
@@ -171,6 +229,8 @@ export class GameMap {
     this.stockpile.set(data.stockpile);
     this.farm.set(data.farm ?? []);
     this.designation.set(data.designation);
+    this.fire.fill(0);
+    if (data.fire) this.fire.set(data.fire);
     this.blueprints = new Map(data.blueprints);
     this.items = new Map(data.items);
     this.recomputeColors();
