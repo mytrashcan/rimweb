@@ -52,7 +52,8 @@ export class GameMap {
     return (
       this.terrain[i] !== Terrain.Water &&
       !this.rock[i] &&
-      this.structure[i] !== Structure.Wall
+      this.structure[i] !== Structure.Wall &&
+      this.structure[i] !== Structure.Turret
     );
   }
   walkableIdx(i: number): boolean {
@@ -158,9 +159,9 @@ export class GameMap {
     return any;
   }
 
-  /** 벽에 피해. 파괴되면 true. */
+  /** 벽/터렛에 피해. 파괴되면 true. */
   damageWall(i: number, dmg: number): boolean {
-    if (this.structure[i] !== Structure.Wall) return false;
+    if (this.structure[i] !== Structure.Wall && this.structure[i] !== Structure.Turret) return false;
     this.structureHp[i] -= dmg;
     if (this.structureHp[i] <= 0) {
       this.structure[i] = Structure.None;

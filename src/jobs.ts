@@ -215,11 +215,11 @@ class ConstructJob extends Job {
     if (bp.workLeft <= 0) {
       m.blueprints.delete(this.bpIdx);
       m.structure[this.bpIdx] = bp.kind;
-      if (bp.kind === Structure.Wall) m.structureHp[this.bpIdx] = WALL_HP;
       m.plant[this.bpIdx] = Plant.None;
       m.dirty = true;
-      if (bp.kind === Structure.Wall) {
-        for (const other of g.pawns) other.nudgeToWalkable(g);
+      if (bp.kind === Structure.Wall || bp.kind === Structure.Turret) {
+        m.structureHp[this.bpIdx] = WALL_HP;
+        for (const other of g.pawns) other.nudgeToWalkable(g); // 통행 불가가 됨
       }
       this.done = true;
     }

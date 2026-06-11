@@ -165,6 +165,10 @@ export class Renderer {
           g.roundRect(px + 2, py + 2, TILE - 4, TILE - 4, 2).fill(0x55555c);
           g.circle(px + TILE / 2, py + TILE / 2, TILE * 0.18).fill(0xe07b39); // 불
           g.circle(px + TILE / 2, py + TILE / 2, TILE * 0.09).fill(0xf0c060);
+        } else if (m.structure[i] === Structure.Turret) {
+          g.circle(px + TILE / 2, py + TILE / 2, TILE * 0.42).fill(0x6e6e76); // 받침
+          g.circle(px + TILE / 2, py + TILE / 2, TILE * 0.26).fill(0x8a98a8); // 포탑
+          g.rect(px + TILE / 2 - 1.5, py + 1, 3, TILE * 0.45).fill(0x3a4148); // 포신
         } else if (m.structure[i] === Structure.Grave) {
           const filled = m.structureHp[i] > 0;
           g.roundRect(px + 3, py + 4, TILE - 6, TILE - 7, 4).fill(filled ? 0x4a3a2c : 0x2c2620);

@@ -1,6 +1,7 @@
 import {
   SHOOT_RANGE, SHOOT_COOLDOWN, SHOOT_DAMAGE,
   RIFLE_RANGE, RIFLE_DAMAGE,
+  TURRET_RANGE, TURRET_COOLDOWN, TURRET_DAMAGE,
   MELEE_RANGE, MELEE_COOLDOWN, MELEE_DAMAGE,
   RAIDER_SHOOT_RANGE, RAIDER_SHOOT_COOLDOWN, RAIDER_SHOOT_DAMAGE, RAIDER_HOLD_RANGE,
 } from './constants';
@@ -30,6 +31,38 @@ export function hasLineOfSight(g: Game, x0: number, y0: number, x1: number, y1: 
     if (m.rock[i] || m.structure[i] === Structure.Wall) return false;
   }
   return true;
+}
+
+/** 터렛: 사거리 + 시야 내 가장 가까운 약탈자를 자동 사격 */
+const turretCds = new Map<number, number>();
+
+export function updateTurrets(g: Game, turrets: number[], dt: number) {
+  for (const ti of turrets) {
+    const cd = (turretCds.get(ti) ?? 0) - dt;
+    if (cd > 0) {
+      turretCds.set(ti, cd);
+      continue;
+    }
+    const tx = (ti % g.map.w) + 0.5;
+    const ty = ((ti / g.map.w) | 0) + 0.5;
+    let best: Pawn | null = null;
+    let bestD = TURRET_RANGE;
+    for (const r of g.raiders) {
+      if (r.dead) continue;
+      const d = Math.hypot(r.x - tx, r.y - ty);
+      if (d < bestD && hasLineOfSight(g, tx, ty, r.x, r.y)) {
+        best = r;
+        bestD = d;
+      }
+    }
+    if (!best) {
+      turretCds.set(ti, 0);
+      continue;
+    }
+    turretCds.set(ti, TURRET_COOLDOWN);
+    g.shots.push({ x0: tx, y0: ty, x1: best.x, y1: best.y, ttl: 0.15, color: 0x9adcf0 });
+    best.takeDamage(g, TURRET_DAMAGE * (0.7 + Math.random() * 0.6));
+  }
 }
 
 /** 무기에 따른 사거리/피해 */
@@ -83,9 +116,9 @@ export function updateRaider(r: Pawn, g: Game, dt: number) {
     return;
   }
 
-  // 부수던 벽이 있으면 마저 부순다
+  // 부수던 벽/터렛이 있으면 마저 부순다
   if (r.bashIdx !== null) {
-    if (m.structure[r.bashIdx] !== Structure.Wall) {
+    if (m.structure[r.bashIdx] !== Structure.Wall && m.structure[r.bashIdx] !== Structure.Turret) {
       r.bashIdx = null; // 부서졌거나 사라짐 → 다시 추격
     } else {
       const [wx, wy] = m.xy(r.bashIdx);
@@ -130,8 +163,9 @@ export function updateRaider(r: Pawn, g: Game, dt: number) {
 
   const res = r.goTo(g, dt, target.tileX, target.tileY, true);
   if (res === 'blocked') {
-    // 정착민에게 갈 수 없음: 걸어서 닿는 가장 가까운 벽을 부수기 시작
-    const wallIdx = bfsNearest(m, r.tileX, r.tileY, (i) => m.structure[i] === Structure.Wall);
+    // 정착민에게 갈 수 없음: 걸어서 닿는 가장 가까운 벽/터렛을 부수기 시작
+    const wallIdx = bfsNearest(m, r.tileX, r.tileY, (i) =>
+      m.structure[i] === Structure.Wall || m.structure[i] === Structure.Turret);
     if (wallIdx !== null) r.bashIdx = wallIdx;
     else r.repathCd = 2; // 부술 벽도 없음 (바위로 막힘 등) → 잠시 후 재시도
   }

@@ -13,6 +13,7 @@ import {
   FIRST_RAIN_TIME, RAIN_INTERVAL_MIN, RAIN_INTERVAL_RAND,
   RAIN_DURATION_MIN, RAIN_DURATION_RAND, RAIN_DOUSE_RATE, RAIN_GROWTH_BONUS,
 } from './constants';
+import { updateTurrets } from './combat';
 import type { Shot } from './combat';
 import type { ItemType } from './types';
 
@@ -87,10 +88,13 @@ export class Game {
       this.time += dt;
       this.map.update(dt, this.growthMult);
       let beds = 0;
+      const turrets: number[] = [];
       for (let i = 0; i < this.map.structure.length; i++) {
         if (this.map.structure[i] === Structure.Bed) beds++;
+        else if (this.map.structure[i] === Structure.Turret) turrets.push(i);
       }
       this.bedCount = beds;
+      if (turrets.length > 0 && this.raiders.length > 0) updateTurrets(this, turrets, dt);
       let corpses = 0;
       for (const s of this.map.items.values()) {
         if (s.type === 'corpse') corpses += s.count;

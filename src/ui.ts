@@ -13,6 +13,7 @@ const TOOLS: { id: Tool; label: string }[] = [
   { id: 'bed', label: '🛏️ 침대 (목재 6)' },
   { id: 'stove', label: '🍳 화덕 (목재 4)' },
   { id: 'grave', label: '⚰️ 무덤' },
+  { id: 'turret', label: '🗼 터렛 (목재 8)' },
   { id: 'stockpile', label: '📦 비축구역' },
   { id: 'farm', label: '🌾 경작지' },
   { id: 'cancel', label: '❌ 취소' },

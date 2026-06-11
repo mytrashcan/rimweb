@@ -2,6 +2,7 @@ import type { Application } from 'pixi.js';
 import {
   WALL_WOOD_COST, WALL_WORK, BED_WOOD_COST, BED_WORK,
   STOVE_WOOD_COST, STOVE_WORK, GRAVE_WORK,
+  TURRET_WOOD_COST, TURRET_WORK,
 } from './constants';
 import { Plant, Structure, Designation } from './map';
 import type { Game } from './game';
@@ -127,6 +128,11 @@ function applyTool(game: Game, rect: Rect) {
           // 무덤은 자재 없이 파기만 하면 된다
           if (m.buildableClear(i) && !m.stockpile[i]) {
             m.blueprints.set(i, { kind: Structure.Grave, woodNeed: 0, woodHas: 0, workLeft: GRAVE_WORK });
+          }
+          break;
+        case 'turret':
+          if (m.buildableClear(i) && !m.stockpile[i]) {
+            m.blueprints.set(i, { kind: Structure.Turret, woodNeed: TURRET_WOOD_COST, woodHas: 0, workLeft: TURRET_WORK });
           }
           break;
         case 'stockpile':
