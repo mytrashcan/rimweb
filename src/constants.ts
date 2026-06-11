@@ -41,6 +41,16 @@ export const HARVEST_SECONDS = 2;
 export const CROP_GROW_SECONDS = 300; // 파종 → 수확까지
 export const FOOD_PER_HARVEST = 3;
 
+// 날씨
+export const FIRST_RAIN_TIME = 0.8; // 일 단위
+export const RAIN_INTERVAL_MIN = 0.8; // 비 그친 뒤 다음 비까지 (일)
+export const RAIN_INTERVAL_RAND = 1.5;
+export const RAIN_DURATION_MIN = 0.1; // 일
+export const RAIN_DURATION_RAND = 0.15;
+export const RAIN_DOUSE_RATE = 0.25; // 초당 화세 감소
+export const RAIN_GROWTH_BONUS = 1.15;
+export const RAIN_SPEED_MULT = 0.92;
+
 // 화재
 export const FIRE_GROW_RATE = 0.12; // 초당 화세 증가 (1이 되면 연료 소실)
 export const FIRE_SPREAD_CHANCE = 0.2; // 초당 인접 가연물 점화 확률

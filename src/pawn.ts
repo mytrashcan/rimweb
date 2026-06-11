@@ -12,7 +12,7 @@ import type { Job } from './jobs';
 import { findJob, BreakJob } from './jobs';
 import { updateColonistCombat, updateRaider } from './combat';
 import { updateAnimal } from './animals';
-import { MEAT_PER_ANIMAL, ANIMAL_FLEE_SECONDS, RIFLE_DROP_CHANCE } from './constants';
+import { MEAT_PER_ANIMAL, ANIMAL_FLEE_SECONDS, RIFLE_DROP_CHANCE, RAIN_SPEED_MULT } from './constants';
 
 export interface MoodFactor {
   label: string;
@@ -174,6 +174,7 @@ export class Pawn {
     }
     if (g.bedCount < g.pawns.length) f.push({ label: '침대 부족', value: -0.08 });
     if (g.raiders.length > 0) f.push({ label: '습격 공포', value: -0.1 });
+    if (g.raining) f.push({ label: g.isWinter ? '눈에 젖음' : '비에 젖음', value: -0.04 });
     return f;
   }
 
@@ -267,7 +268,7 @@ export class Pawn {
     const dx = targetX - this.x;
     const dy = targetY - this.y;
     const dist = Math.hypot(dx, dy);
-    const step = this.speed * dt;
+    const step = this.speed * (g.raining ? RAIN_SPEED_MULT : 1) * dt;
     if (dist <= step) {
       this.x = targetX;
       this.y = targetY;

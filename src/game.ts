@@ -10,6 +10,8 @@ import {
   MAX_ANIMALS, ANIMAL_HP, MAX_COLONISTS,
   FIRST_JOIN_TIME, JOIN_INTERVAL_MIN, JOIN_INTERVAL_RAND,
   FIRE_DAMAGE_PER_SEC, FIRST_LIGHTNING_TIME, LIGHTNING_INTERVAL_MIN, LIGHTNING_INTERVAL_RAND,
+  FIRST_RAIN_TIME, RAIN_INTERVAL_MIN, RAIN_INTERVAL_RAND,
+  RAIN_DURATION_MIN, RAIN_DURATION_RAND, RAIN_DOUSE_RATE, RAIN_GROWTH_BONUS,
 } from './constants';
 import type { Shot } from './combat';
 import type { ItemType } from './types';
@@ -46,6 +48,9 @@ export class Game {
   private nextAnimalCheck = DAY_SECONDS;
   nextJoinTime = FIRST_JOIN_TIME * DAY_SECONDS;
   nextLightningTime = FIRST_LIGHTNING_TIME * DAY_SECONDS;
+  /** 비 시작 시각 (clear일 때) 또는 비 그칠 시각 (raining일 때) */
+  raining = false;
+  nextWeatherTime = FIRST_RAIN_TIME * DAY_SECONDS;
   messages: { text: string; until: number }[] = [];
   nextRaidTime = FIRST_RAID_TIME * DAY_SECONDS;
 
@@ -103,6 +108,24 @@ export class Game {
       if (this.time >= this.nextRaidTime) this.spawnRaid();
       if (this.time >= this.nextJoinTime) this.tryJoinWanderer();
       if (this.time >= this.nextLightningTime) this.strikeLightning();
+      // 날씨 전환
+      if (this.time >= this.nextWeatherTime) {
+        this.raining = !this.raining;
+        if (this.raining) {
+          this.nextWeatherTime = this.time + (RAIN_DURATION_MIN + Math.random() * RAIN_DURATION_RAND) * DAY_SECONDS;
+          this.addMessage(this.isWinter ? '🌨 눈이 내리기 시작했다.' : '🌧 비가 내리기 시작했다.');
+        } else {
+          this.nextWeatherTime = this.time + (RAIN_INTERVAL_MIN + Math.random() * RAIN_INTERVAL_RAND) * DAY_SECONDS;
+        }
+      }
+      // 비는 불을 끈다
+      if (this.raining) {
+        for (let i = 0; i < this.map.fire.length; i++) {
+          if (this.map.fire[i] > 0) {
+            this.map.fire[i] = Math.max(0, this.map.fire[i] - RAIN_DOUSE_RATE * dt);
+          }
+        }
+      }
       // 화재: 확산 + 불 위에 서 있는 모든 생명체 피해
       if (this.map.updateFire(dt)) {
         for (const e of [...this.pawns, ...this.raiders, ...this.animals]) {
@@ -205,7 +228,7 @@ export class Game {
     return this.seasonIdx === 3;
   }
   get growthMult(): number {
-    return SEASON_GROWTH[this.seasonIdx];
+    return SEASON_GROWTH[this.seasonIdx] * (this.raining ? RAIN_GROWTH_BONUS : 1);
   }
 
   get isNight(): boolean {
@@ -252,6 +275,8 @@ export class Game {
         animals: this.animals.map((a) => ({ x: a.x, y: a.y, hp: a.hp, hunted: a.hunted })),
         nextRaidTime: this.nextRaidTime,
         nextJoinTime: this.nextJoinTime,
+        raining: this.raining,
+        nextWeatherTime: this.nextWeatherTime,
       };
       localStorage.setItem('rimweb-save', JSON.stringify(data));
       return true;
@@ -306,6 +331,8 @@ export class Game {
       });
       this.nextRaidTime = data.nextRaidTime ?? this.time + FIRST_RAID_TIME * DAY_SECONDS;
       this.nextJoinTime = data.nextJoinTime ?? this.time + FIRST_JOIN_TIME * DAY_SECONDS;
+      this.raining = data.raining ?? false;
+      this.nextWeatherTime = data.nextWeatherTime ?? this.time + FIRST_RAIN_TIME * DAY_SECONDS;
       this.shots = [];
       this.messages = [];
       return true;

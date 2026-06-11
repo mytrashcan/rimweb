@@ -150,7 +150,7 @@ export class UI {
       `<span class="res"><span class="dot" style="background:#e8d9b0"></span>요리 ${res.meal}</span>` +
       (res.rifle > 0 ? `<span class="res"><span class="dot" style="background:#4a3826"></span>소총 ${res.rifle}</span>` : '') +
       `<span class="sep"></span>` +
-      `<span>${this.game.seasonName} ${this.game.day}일차 ${this.game.clockText}${this.game.isNight ? ' 🌙' : ''}</span>` +
+      `<span>${this.game.seasonName} ${this.game.day}일차 ${this.game.clockText}${this.game.isNight ? ' 🌙' : ''}${this.game.raining ? (this.game.isWinter ? ' 🌨' : ' 🌧') : ''}</span>` +
       (this.game.raiders.length > 0
         ? `<span class="sep"></span><span style="color:#e07070">⚔ 습격 중 (${this.game.raiders.length})</span>`
         : '');

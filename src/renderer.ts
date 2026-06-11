@@ -19,6 +19,7 @@ export class Renderer {
   private pawnLayer = new Container();
   private fireG = new Graphics();
   private shotG = new Graphics();
+  private weatherG = new Graphics();
   private nightG = new Graphics();
   private pawnViews = new Map<Pawn, PawnView>();
   private labelStyle: TextStyle;
@@ -27,7 +28,7 @@ export class Renderer {
 
   constructor(private app: Application, private game: Game) {
     this.world.addChild(this.tileG, this.overlayG, this.itemG, this.pawnLayer, this.fireG, this.shotG);
-    app.stage.addChild(this.world, this.nightG);
+    app.stage.addChild(this.world, this.weatherG, this.nightG);
 
     this.labelStyle = new TextStyle({
       fontFamily: 'Segoe UI, sans-serif',
@@ -49,7 +50,35 @@ export class Renderer {
     this.drawPawns();
     this.drawFire();
     this.drawShots();
+    this.drawWeather();
     this.drawNight();
+  }
+
+  /** 비/눈: 화면 공간에 떨어지는 입자들 */
+  private drawWeather() {
+    const g = this.weatherG;
+    g.clear();
+    if (!this.game.raining) return;
+    const w = this.app.screen.width;
+    const h = this.app.screen.height;
+    const t = performance.now() / 1000;
+    const snow = this.game.isWinter;
+    const count = 90;
+    for (let i = 0; i < count; i++) {
+      // 입자별 고정 시드로 균일하게 흩뿌리기
+      const seed = (i * 2654435761) >>> 0;
+      const x0 = (seed % 1000) / 1000;
+      const speed = snow ? 60 + (seed % 40) : 380 + (seed % 120);
+      const y = ((seed % 700) / 700 * h + t * speed) % h;
+      const x = (x0 * w + (snow ? Math.sin(t * 1.5 + i) * 18 : t * 60)) % w;
+      if (snow) {
+        g.circle(x, y, 1.6 + (seed % 3) * 0.5).fill({ color: 0xffffff, alpha: 0.7 });
+      } else {
+        g.moveTo(x, y).lineTo(x - 3, y + 11).stroke({ width: 1.2, color: 0x9cb8d0, alpha: 0.55 });
+      }
+    }
+    // 비 오는 날의 어둑함
+    if (!snow) g.rect(0, 0, w, h).fill({ color: 0x202c3a, alpha: 0.12 });
   }
 
   private drawFire() {
