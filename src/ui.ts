@@ -27,6 +27,7 @@ export class UI {
   private speedButtons: HTMLButtonElement[] = [];
   private workCells = new Map<Pawn, Map<WorkType, HTMLTableCellElement>>();
   private pawnpanelHtml = '';
+  private knownPawns: Pawn[] = [];
 
   constructor(private game: Game) {
     // 도구 버튼
@@ -96,6 +97,8 @@ export class UI {
   }
 
   private buildWorkPanel() {
+    this.knownPawns = [...this.game.pawns];
+    this.workCells.clear();
     this.workpanel.innerHTML = '<h3>작업 우선순위</h3>';
     const table = document.createElement('table');
     const head = table.insertRow();
@@ -130,6 +133,14 @@ export class UI {
   }
 
   update() {
+    // 정착민이 합류/교체되면(불러오기 포함) 작업 표를 다시 만든다
+    if (
+      this.knownPawns.length !== this.game.pawns.length ||
+      this.knownPawns.some((p, i) => p !== this.game.pawns[i])
+    ) {
+      this.buildWorkPanel();
+    }
+
     const res = this.game.countResources();
     this.topbar.innerHTML =
       `<span class="res"><span class="dot" style="background:#9a6b3f"></span>목재 ${res.wood}</span>` +

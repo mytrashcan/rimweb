@@ -32,6 +32,12 @@ export const HARVEST_SECONDS = 2;
 export const CROP_GROW_SECONDS = 300; // 파종 → 수확까지
 export const FOOD_PER_HARVEST = 3;
 
+// 인구
+export const MAX_COLONISTS = 6;
+export const FIRST_JOIN_TIME = 2.5; // 일 단위
+export const JOIN_INTERVAL_MIN = 2; // 일
+export const JOIN_INTERVAL_RAND = 1.5;
+
 // 야생동물
 export const ANIMAL_HP = 40;
 export const MEAT_PER_ANIMAL = 6;

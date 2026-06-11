@@ -6,7 +6,10 @@ import {
 import { GameMap, Structure } from './map';
 import { Pawn } from './pawn';
 import { makeAnimal } from './animals';
-import { MAX_ANIMALS, ANIMAL_HP } from './constants';
+import {
+  MAX_ANIMALS, ANIMAL_HP, MAX_COLONISTS,
+  FIRST_JOIN_TIME, JOIN_INTERVAL_MIN, JOIN_INTERVAL_RAND,
+} from './constants';
 import type { Shot } from './combat';
 import type { ItemType } from './types';
 
@@ -14,6 +17,16 @@ const PAWN_DEFS: [string, number][] = [
   ['도현', 0xe2b06c],
   ['서연', 0x6cb4e2],
   ['민준', 0xb287d6],
+];
+
+/** 방랑자 이름/색상 풀 (초기 3명 이후 합류 순서대로) */
+const WANDERER_DEFS: [string, number][] = [
+  ['하늘', 0x7dd6a0],
+  ['지우', 0xd6d67d],
+  ['은서', 0xd67d9c],
+  ['태오', 0x7dc6d6],
+  ['수아', 0xd09ce0],
+  ['예린', 0x9cd07d],
 ];
 
 export class Game {
@@ -30,6 +43,7 @@ export class Game {
   /** 침대 수 캐시 (기분 계산용, 틱마다 갱신) */
   bedCount = 0;
   private nextAnimalCheck = DAY_SECONDS;
+  nextJoinTime = FIRST_JOIN_TIME * DAY_SECONDS;
   messages: { text: string; until: number }[] = [];
   nextRaidTime = FIRST_RAID_TIME * DAY_SECONDS;
 
@@ -85,6 +99,7 @@ export class Game {
         }
       }
       if (this.time >= this.nextRaidTime) this.spawnRaid();
+      if (this.time >= this.nextJoinTime) this.tryJoinWanderer();
       for (const s of this.shots) s.ttl -= dt;
       this.shots = this.shots.filter((s) => s.ttl > 0);
     }
@@ -105,6 +120,22 @@ export class Game {
       if (m.walkable(x, y)) return { x, y };
     }
     return null;
+  }
+
+  /** 방랑자 합류 이벤트: 가장자리에서 새 정착민이 걸어 들어온다 */
+  tryJoinWanderer() {
+    this.nextJoinTime = this.time + (JOIN_INTERVAL_MIN + Math.random() * JOIN_INTERVAL_RAND) * DAY_SECONDS;
+    if (this.pawns.length >= MAX_COLONISTS) return;
+    const spot = this.findEdgeTile();
+    if (!spot) return;
+    // 아직 안 쓴 이름 고르기
+    const used = new Set(this.pawns.map((p) => p.name));
+    const def = WANDERER_DEFS.find(([name]) => !used.has(name)) ?? WANDERER_DEFS[0];
+    const p = new Pawn(spot.x, spot.y, def[0], def[1]);
+    p.hunger = 0.5;
+    p.rest = 0.6;
+    this.pawns.push(p);
+    this.addMessage(`🎒 방랑자 ${p.name}이(가) 콜로니에 합류했다!`);
   }
 
   spawnRaid(count?: number) {
@@ -192,6 +223,7 @@ export class Game {
         raiders: this.raiders.map((r) => ({ x: r.x, y: r.y, hp: r.hp, ranged: r.isRanged })),
         animals: this.animals.map((a) => ({ x: a.x, y: a.y, hp: a.hp, hunted: a.hunted })),
         nextRaidTime: this.nextRaidTime,
+        nextJoinTime: this.nextJoinTime,
       };
       localStorage.setItem('rimweb-save', JSON.stringify(data));
       return true;
@@ -209,28 +241,26 @@ export class Game {
       this.time = data.time;
       this.map.deserialize(data.map);
       this.reserved.clear();
-      // 정착민 수는 고정이므로 인덱스로 짝지어 복원
-      const n = Math.min(this.pawns.length, data.pawns.length);
-      for (let i = 0; i < n; i++) {
-        const p = this.pawns[i];
-        const s = data.pawns[i];
-        if (p.job) p.job.cleanup(this);
-        p.job = null;
-        p.sleeping = false;
-        p.stopMoving();
-        p.x = s.x; p.y = s.y;
-        p.name = s.name; p.color = s.color;
-        p.hunger = s.hunger; p.rest = s.rest;
+      // 정착민 수가 달라질 수 있으므로 배열을 통째로 재구성
+      interface SavedPawn {
+        x: number; y: number; name: string; color: number;
+        hunger: number; rest: number; carrying: Pawn['carrying'];
+        priorities?: Pawn['priorities']; hp?: number; downed?: boolean;
+        downTimer?: number; drafted?: boolean; mood?: number;
+      }
+      this.pawns = (data.pawns as SavedPawn[]).map((s) => {
+        const p = new Pawn(s.x - 0.5, s.y - 0.5, s.name, s.color);
+        p.hunger = s.hunger;
+        p.rest = s.rest;
         p.carrying = s.carrying;
         if (s.priorities) p.priorities = { ...p.priorities, ...s.priorities };
         p.hp = s.hp ?? COLONIST_HP;
         p.downed = s.downed ?? false;
         p.downTimer = s.downTimer ?? 0;
         p.drafted = s.drafted ?? false;
-        p.draftDest = null;
         p.mood = s.mood ?? 0.65;
-        p.beingRescued = false;
-      }
+        return p;
+      });
       this.raiders = (data.raiders ?? []).map((s: { x: number; y: number; hp: number; ranged?: boolean }) => {
         const r = new Pawn(s.x - 0.5, s.y - 0.5, '약탈자', 0xd64541, 'raider');
         r.hp = s.hp;
@@ -245,6 +275,7 @@ export class Game {
         return a;
       });
       this.nextRaidTime = data.nextRaidTime ?? this.time + FIRST_RAID_TIME * DAY_SECONDS;
+      this.nextJoinTime = data.nextJoinTime ?? this.time + FIRST_JOIN_TIME * DAY_SECONDS;
       this.shots = [];
       this.messages = [];
       return true;
