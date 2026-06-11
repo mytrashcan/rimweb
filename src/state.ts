@@ -6,6 +6,8 @@ export const uiState = {
   tool: 'select' as Tool,
   /** 선택된 정착민들 (드래그 박스로 다중 선택 가능) */
   selectedPawns: [] as Pawn[],
+  /** 선택된 야생동물들 — 패널에서 사냥 지정용 */
+  selectedAnimals: [] as Pawn[],
   /** 선택된 타일들 (나무/바위) — 패널에서 일괄 지정용 */
   selectedTiles: [] as number[],
   selectedTileKind: null as 'tree' | 'rock' | null,
@@ -13,6 +15,7 @@ export const uiState = {
 
 export function clearSelection() {
   uiState.selectedPawns = [];
+  uiState.selectedAnimals = [];
   uiState.selectedTiles = [];
   uiState.selectedTileKind = null;
 }

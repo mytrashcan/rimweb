@@ -32,6 +32,12 @@ export const HARVEST_SECONDS = 2;
 export const CROP_GROW_SECONDS = 300; // 파종 → 수확까지
 export const FOOD_PER_HARVEST = 3;
 
+// 야생동물
+export const ANIMAL_HP = 40;
+export const MEAT_PER_ANIMAL = 6;
+export const MAX_ANIMALS = 5;
+export const ANIMAL_FLEE_SECONDS = 6;
+
 // 기분
 export const MOOD_BASE = 0.65;
 export const MOOD_LERP_SECONDS = 30; // 목표 기분으로 수렴하는 시간 상수

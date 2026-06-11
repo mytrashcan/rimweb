@@ -2,7 +2,7 @@ import type { Game } from './game';
 import type { Tool, WorkType } from './types';
 import { WORK_TYPES, WORK_LABELS } from './types';
 import { uiState, clearSelection } from './state';
-import { toggleDraftSelected, designateSelectedTiles } from './selection';
+import { toggleDraftSelected, designateSelectedTiles, designateSelectedAnimals } from './selection';
 import type { Pawn } from './pawn';
 
 const TOOLS: { id: Tool; label: string }[] = [
@@ -89,6 +89,8 @@ export class UI {
         if (p) uiState.selectedPawns = [p];
       } else if (action === 'designate') {
         designateSelectedTiles(this.game);
+      } else if (action === 'hunt') {
+        designateSelectedAnimals();
       }
     });
   }
@@ -219,6 +221,16 @@ export class UI {
         .join('');
       const anyUndrafted = sel.some((p) => !p.downed && !p.drafted);
       return `<h3>정착민 ${sel.length}명</h3>` + rows + draftButton(!anyUndrafted);
+    }
+
+    // 동물 선택: 사냥 지정
+    if (uiState.selectedAnimals.length > 0) {
+      const n = uiState.selectedAnimals.length;
+      const marked = uiState.selectedAnimals.filter((a) => a.hunted).length;
+      return (
+        `<h3>🦌 사슴 ${n}마리${marked > 0 ? ` (사냥 표시 ${marked})` : ''}</h3>` +
+        `<button data-action="hunt">🏹 사냥 지정</button>`
+      );
     }
 
     // 나무/바위 선택: 일괄 지정

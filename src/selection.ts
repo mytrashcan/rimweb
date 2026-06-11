@@ -1,5 +1,5 @@
 import { Plant, Designation, spiralTiles } from './map';
-import { makeForcedJob, MoveJob } from './jobs';
+import { makeForcedJob, MoveJob, HuntJob } from './jobs';
 import { uiState, clearSelection } from './state';
 import type { Game } from './game';
 import type { Camera } from './camera';
@@ -39,14 +39,19 @@ export function applySelection(game: Game, camera: Camera, rect: Rect, sx: numbe
   }
 
   // 드래그 박스: 정착민 우선
-  const pawns = game.pawns.filter((p) =>
-    p.tileX >= xa && p.tileX <= xb && p.tileY >= ya && p.tileY <= yb,
-  );
+  const inBox = (p: { tileX: number; tileY: number }) =>
+    p.tileX >= xa && p.tileX <= xb && p.tileY >= ya && p.tileY <= yb;
+  const pawns = game.pawns.filter(inBox);
   if (pawns.length > 0) {
     uiState.selectedPawns = pawns;
     return;
   }
-  // 정착민이 없으면 나무 → 바위
+  // 정착민이 없으면 동물 → 나무 → 바위
+  const animals = game.animals.filter((a) => !a.dead && inBox(a));
+  if (animals.length > 0) {
+    uiState.selectedAnimals = animals;
+    return;
+  }
   for (const [kind, match] of [
     ['tree', (i: number) => m.plant[i] === Plant.Tree],
     ['rock', (i: number) => m.rock[i] === 1],
@@ -84,9 +89,18 @@ export function designateSelectedTiles(game: Game) {
   clearSelection();
 }
 
+/** 선택된 동물들을 사냥 지정 */
+export function designateSelectedAnimals() {
+  for (const a of uiState.selectedAnimals) a.hunted = true;
+  clearSelection();
+}
+
 /** 우클릭 직접 명령을 선택된 정착민 전원에게 내린다 */
 export function issueOrders(game: Game, tx: number, ty: number) {
-  const sel = uiState.selectedPawns.filter((p) => !p.downed);
+  // 멘탈 브레이크 중인 정착민은 명령을 받지 않는다 (예약 누수 방지)
+  const sel = uiState.selectedPawns.filter(
+    (p) => !p.downed && !(p.job && p.job.uninterruptible),
+  );
   if (sel.length === 0) return;
 
   // 산개 배치 지점을 미리 수집 (목표 주변의 통행 가능 타일들)
@@ -96,11 +110,23 @@ export function issueOrders(game: Game, tx: number, ty: number) {
     if (spots.length >= sel.length) break;
   }
 
+  // 우클릭한 곳에 동물이 있으면 사냥 명령
+  const animal = game.animals.find(
+    (a) => !a.dead && Math.hypot(a.x - (tx + 0.5), a.y - (ty + 0.5)) < 1.1,
+  );
+
   for (const p of sel) {
     if (p.drafted) {
       const spot = spots.shift();
       if (spot) p.draftDest = spot;
       continue;
+    }
+    if (animal) {
+      animal.hunted = true;
+      if (!animal.targeted) {
+        p.assignForcedJob(game, new HuntJob(animal));
+        continue;
+      }
     }
     const job = makeForcedJob(p, game, tx, ty);
     if (job) {

@@ -52,7 +52,7 @@ export class Renderer {
 
   /** 정착민 + 약탈자 뷰를 동기화 (스폰/사망 대응) */
   private syncPawnViews() {
-    const all = new Set<Pawn>([...this.game.pawns, ...this.game.raiders]);
+    const all = new Set<Pawn>([...this.game.pawns, ...this.game.raiders, ...this.game.animals]);
     for (const p of all) {
       if (this.pawnViews.has(p)) continue;
       const root = new Container();
@@ -224,13 +224,22 @@ export class Renderer {
       }
       view.label.alpha = 1;
 
-      if (uiState.selectedPawns.includes(p)) {
+      if (uiState.selectedPawns.includes(p) || uiState.selectedAnimals.includes(p)) {
         g.circle(0, 0, TILE * 0.5).stroke({ width: 2, color: 0xffffff, alpha: 0.9 });
       }
       if (p.drafted) {
         g.circle(0, 0, TILE * 0.46).stroke({ width: 2, color: 0xe05050, alpha: 0.95 });
       }
-      g.circle(0, 0, TILE * 0.38).fill(p.color).stroke({ width: 1.5, color: 0x202428 });
+      if (p.hunted) {
+        g.circle(0, 0, TILE * 0.46).stroke({ width: 2, color: 0xe0a039, alpha: 0.95 });
+      }
+      const bodyR = p.faction === 'animal' ? TILE * 0.3 : TILE * 0.38;
+      g.circle(0, 0, bodyR).fill(p.color).stroke({ width: 1.5, color: 0x202428 });
+      if (p.faction === 'animal') {
+        // 사슴 귀
+        g.circle(-bodyR * 0.7, -bodyR * 0.8, bodyR * 0.32).fill(0x8a6b48);
+        g.circle(bodyR * 0.7, -bodyR * 0.8, bodyR * 0.32).fill(0x8a6b48);
+      }
       if (p.isRanged) {
         // 원거리 약탈자: 어깨에 멘 총신
         g.roundRect(-TILE * 0.42, -TILE * 0.1, TILE * 0.84, 3, 1.5).fill(0x4a3826);

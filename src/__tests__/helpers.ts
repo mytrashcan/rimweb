@@ -20,6 +20,7 @@ export function blankGame(): Game {
   m.items.clear();
   m.recomputeColors();
   g.raiders = [];
+  g.animals = [];
   g.reserved.clear();
   g.messages = [];
   g.nextRaidTime = Infinity; // 테스트 도중 습격 방지

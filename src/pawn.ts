@@ -11,6 +11,8 @@ import type { Game } from './game';
 import type { Job } from './jobs';
 import { findJob, BreakJob } from './jobs';
 import { updateColonistCombat, updateRaider } from './combat';
+import { updateAnimal } from './animals';
+import { MEAT_PER_ANIMAL, ANIMAL_FLEE_SECONDS } from './constants';
 
 export interface MoodFactor {
   label: string;
@@ -18,7 +20,7 @@ export interface MoodFactor {
 }
 
 export type MoveResult = 'arrived' | 'moving' | 'blocked';
-export type Faction = 'colonist' | 'raider';
+export type Faction = 'colonist' | 'raider' | 'animal';
 
 export class Pawn {
   x: number; // 타일 단위 좌표 (칸 중심 = x.5)
@@ -47,10 +49,17 @@ export class Pawn {
   drafted = false;
   draftDest: { x: number; y: number } | null = null;
   attackCd = 0;
-  dead = false; // 약탈자 전용: 사망/이탈 → 다음 틱에 제거
+  dead = false; // 약탈자/동물 전용: 사망/이탈 → 다음 틱에 제거
   isRanged = false; // 약탈자 전용: 원거리 무장
   bashIdx: number | null = null; // 약탈자가 부수는 중인 벽
   repathCd = 0;
+
+  // 동물 전용
+  hunted = false; // 사냥 지정됨
+  targeted = false; // 사냥꾼이 이미 붙음 (이중 배정 방지)
+  fleeTimer = 0;
+  wanderTarget: { x: number; y: number } | null = null;
+  wanderWait = 0;
 
   private path: { x: number; y: number }[] | null = null;
   private pathGoal = '';
@@ -83,6 +92,10 @@ export class Pawn {
 
     if (this.faction === 'raider') {
       updateRaider(this, g, dt);
+      return;
+    }
+    if (this.faction === 'animal') {
+      updateAnimal(this, g, dt);
       return;
     }
 
@@ -166,10 +179,18 @@ export class Pawn {
       this.job = null;
       this.sleeping = false;
     }
-    if (this.hp > 0) return;
+    if (this.hp > 0) {
+      if (this.faction === 'animal') this.fleeTimer = ANIMAL_FLEE_SECONDS; // 놀라서 도망
+      return;
+    }
     this.hp = 0;
     if (this.faction === 'raider') {
       this.dead = true;
+      return;
+    }
+    if (this.faction === 'animal') {
+      this.dead = true;
+      g.map.dropItem(g.map.idx(this.tileX, this.tileY), 'food', MEAT_PER_ANIMAL); // 고기
       return;
     }
     // 정착민은 죽지 않고 쓰러진다
@@ -193,6 +214,7 @@ export class Pawn {
   get speed(): number {
     let s = PAWN_SPEED;
     if (this.faction === 'raider') s *= 0.85;
+    if (this.faction === 'animal') s *= this.fleeTimer > 0 ? 1.3 : 0.55;
     if (this.carrying) s *= 0.85;
     if (this.faction === 'colonist' && this.hunger <= 0) s *= 0.5; // 굶주림 페널티
     return s;

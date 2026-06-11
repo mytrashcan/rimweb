@@ -5,6 +5,8 @@ import {
 } from './constants';
 import { GameMap, Structure } from './map';
 import { Pawn } from './pawn';
+import { makeAnimal } from './animals';
+import { MAX_ANIMALS, ANIMAL_HP } from './constants';
 import type { Shot } from './combat';
 import type { ItemType } from './types';
 
@@ -23,9 +25,11 @@ export class Game {
   /** 작업이 점유 중인 타일 인덱스 (이중 배정 방지) */
   reserved = new Set<number>();
   raiders: Pawn[] = [];
+  animals: Pawn[] = [];
   shots: Shot[] = [];
   /** 침대 수 캐시 (기분 계산용, 틱마다 갱신) */
   bedCount = 0;
+  private nextAnimalCheck = DAY_SECONDS;
   messages: { text: string; until: number }[] = [];
   nextRaidTime = FIRST_RAID_TIME * DAY_SECONDS;
 
@@ -36,6 +40,17 @@ export class Game {
     PAWN_DEFS.forEach(([name, color], i) => {
       this.pawns.push(new Pawn(cx - 1 + i, cy - 1, name, color));
     });
+    // 초기 야생동물
+    for (let n = 0; n < MAX_ANIMALS; n++) {
+      for (let tries = 0; tries < 50; tries++) {
+        const x = (Math.random() * this.map.w) | 0;
+        const y = (Math.random() * this.map.h) | 0;
+        if (this.map.walkable(x, y) && Math.hypot(x - cx, y - cy) > 10) {
+          this.animals.push(makeAnimal(x, y));
+          break;
+        }
+      }
+    }
   }
 
   update(realDt: number) {
@@ -59,6 +74,16 @@ export class Game {
         this.raiders = this.raiders.filter((r) => !r.dead);
         if (this.raiders.length === 0) this.addMessage('습격을 격퇴했다! 🎉');
       }
+      for (const a of this.animals) a.update(this, dt);
+      this.animals = this.animals.filter((a) => !a.dead);
+      // 하루에 한 번, 야생동물이 줄었으면 가장자리에서 보충
+      if (this.time >= this.nextAnimalCheck) {
+        this.nextAnimalCheck = this.time + DAY_SECONDS;
+        if (this.animals.length < MAX_ANIMALS) {
+          const spot = this.findEdgeTile();
+          if (spot) this.animals.push(makeAnimal(spot.x, spot.y));
+        }
+      }
       if (this.time >= this.nextRaidTime) this.spawnRaid();
       for (const s of this.shots) s.ttl -= dt;
       this.shots = this.shots.filter((s) => s.ttl > 0);
@@ -70,18 +95,25 @@ export class Game {
     if (this.messages.length > 6) this.messages.shift();
   }
 
-  spawnRaid(count?: number) {
-    const n = count ?? Math.min(5, 1 + Math.floor(this.day / 2));
+  /** 맵 가장자리의 무작위 통행 가능 타일 */
+  private findEdgeTile(): { x: number; y: number } | null {
     const m = this.map;
-    // 무작위 가장자리에서 통행 가능한 스폰 지점 찾기
-    let sx = -1, sy = -1;
     for (let tries = 0; tries < 300; tries++) {
       const side = (Math.random() * 4) | 0;
       const x = side < 2 ? (side === 0 ? 1 : m.w - 2) : 1 + ((Math.random() * (m.w - 2)) | 0);
       const y = side < 2 ? 1 + ((Math.random() * (m.h - 2)) | 0) : (side === 2 ? 1 : m.h - 2);
-      if (m.walkable(x, y)) { sx = x; sy = y; break; }
+      if (m.walkable(x, y)) return { x, y };
     }
-    if (sx < 0) return; // 스폰 불가 (사실상 없음)
+    return null;
+  }
+
+  spawnRaid(count?: number) {
+    const n = count ?? Math.min(5, 1 + Math.floor(this.day / 2));
+    const m = this.map;
+    const spot = this.findEdgeTile();
+    if (!spot) return; // 스폰 불가 (사실상 없음)
+    const sx = spot.x;
+    const sy = spot.y;
     let spawned = 0;
     for (let dy = -2; dy <= 2 && spawned < n; dy++) {
       for (let dx = -2; dx <= 2 && spawned < n; dx++) {
@@ -158,6 +190,7 @@ export class Game {
           mood: p.mood,
         })),
         raiders: this.raiders.map((r) => ({ x: r.x, y: r.y, hp: r.hp, ranged: r.isRanged })),
+        animals: this.animals.map((a) => ({ x: a.x, y: a.y, hp: a.hp, hunted: a.hunted })),
         nextRaidTime: this.nextRaidTime,
       };
       localStorage.setItem('rimweb-save', JSON.stringify(data));
@@ -204,6 +237,12 @@ export class Game {
         r.maxHp = RAIDER_HP;
         r.isRanged = s.ranged ?? false;
         return r;
+      });
+      this.animals = (data.animals ?? []).map((s: { x: number; y: number; hp: number; hunted?: boolean }) => {
+        const a = makeAnimal(s.x - 0.5, s.y - 0.5);
+        a.hp = Math.min(s.hp, ANIMAL_HP);
+        a.hunted = s.hunted ?? false;
+        return a;
       });
       this.nextRaidTime = data.nextRaidTime ?? this.time + FIRST_RAID_TIME * DAY_SECONDS;
       this.shots = [];

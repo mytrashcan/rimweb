@@ -38,7 +38,7 @@ export interface Blueprint {
 }
 
 /** 작업 종류 — 배열 순서가 같은 우선순위 내의 처리 순서 */
-export const WORK_TYPES = ['construct', 'grow', 'mine', 'chop', 'haul'] as const;
+export const WORK_TYPES = ['construct', 'grow', 'mine', 'chop', 'hunt', 'haul'] as const;
 export type WorkType = (typeof WORK_TYPES)[number];
 
 export const WORK_LABELS: Record<WorkType, string> = {
@@ -46,11 +46,12 @@ export const WORK_LABELS: Record<WorkType, string> = {
   grow: '농사',
   mine: '채굴',
   chop: '벌목',
+  hunt: '사냥',
   haul: '운반',
 };
 
 export function defaultPriorities(): Record<WorkType, number> {
-  return { construct: 3, grow: 3, mine: 3, chop: 3, haul: 3 };
+  return { construct: 3, grow: 3, mine: 3, chop: 3, hunt: 3, haul: 3 };
 }
 
 export type Tool =

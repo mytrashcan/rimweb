@@ -4,7 +4,9 @@ import {
   SOW_SECONDS, HARVEST_SECONDS, FOOD_PER_HARVEST, WALL_HP,
   HUNGER_SEEK_FOOD, REST_COLLAPSE, NIGHT_SLEEP_REST,
   BREAK_DURATION, BREAK_CATHARSIS,
+  SHOOT_RANGE, SHOOT_COOLDOWN, SHOOT_DAMAGE,
 } from './constants';
+import { hasLineOfSight } from './combat';
 import { bfsNearest } from './astar';
 import { Plant, Structure, Designation } from './map';
 import { WORK_TYPES } from './types';
@@ -370,6 +372,36 @@ class SleepJob extends Job {
   }
 }
 
+// ---------- 작업: 사냥 ----------
+
+export class HuntJob extends Job {
+  label = '사냥 중';
+  constructor(private target: Pawn) {
+    super();
+    target.targeted = true;
+  }
+  update(p: Pawn, g: Game, dt: number) {
+    const t = this.target;
+    if (t.dead) { this.done = true; return; }
+    if (!t.hunted) { this.failed = true; return; }
+    const d = Math.hypot(t.x - p.x, t.y - p.y);
+    if (d <= SHOOT_RANGE - 0.5 && hasLineOfSight(g, p.x, p.y, t.x, t.y)) {
+      p.stopMoving();
+      if (p.attackCd <= 0) {
+        p.attackCd = SHOOT_COOLDOWN;
+        g.shots.push({ x0: p.x, y0: p.y, x1: t.x, y1: t.y, ttl: 0.15, color: 0xffe08a });
+        t.takeDamage(g, SHOOT_DAMAGE * (0.7 + Math.random() * 0.6));
+      }
+      return;
+    }
+    if (p.goTo(g, dt, t.tileX, t.tileY) === 'blocked') this.failed = true;
+  }
+  cleanup(g: Game) {
+    super.cleanup(g);
+    this.target.targeted = false;
+  }
+}
+
 // ---------- 작업: 구조 (쓰러진 동료 → 침대) ----------
 
 export class RescueJob extends Job {
@@ -470,6 +502,7 @@ class WanderJob extends Job {
 function hasUrgentWork(p: Pawn, g: Game): boolean {
   if (p.hunger < HUNGER_SEEK_FOOD || p.rest < REST_COLLAPSE) return true;
   if (g.pawns.some((o) => o !== p && o.downed && !o.beingRescued)) return true;
+  if (p.priorities.hunt > 0 && g.animals.some((a) => !a.dead && a.hunted && !a.targeted)) return true;
   const m = g.map;
   const wants = (wt: WorkType) => p.priorities[wt] > 0;
   for (let i = 0; i < m.designation.length; i++) {
@@ -604,6 +637,17 @@ function makeChopWork(p: Pawn, g: Game): Job | null {
   return j;
 }
 
+function makeHuntWork(p: Pawn, g: Game): Job | null {
+  let best: Pawn | null = null;
+  let bestD = Infinity;
+  for (const a of g.animals) {
+    if (a.dead || !a.hunted || a.targeted) continue;
+    const d = Math.hypot(a.x - p.x, a.y - p.y);
+    if (d < bestD) { bestD = d; best = a; }
+  }
+  return best ? new HuntJob(best) : null;
+}
+
 function makeHaulWork(p: Pawn, g: Game): Job | null {
   const m = g.map;
   const haulSrc = bfsNearest(m, p.tileX, p.tileY, (i) => {
@@ -625,6 +669,7 @@ const WORK_MAKERS: Record<WorkType, (p: Pawn, g: Game) => Job | null> = {
   grow: makeGrowWork,
   mine: makeMineWork,
   chop: makeChopWork,
+  hunt: makeHuntWork,
   haul: makeHaulWork,
 };
 
