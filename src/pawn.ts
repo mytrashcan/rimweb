@@ -39,6 +39,9 @@ export class Pawn {
   // 기분
   mood = MOOD_BASE;
   private lowMoodTime = 0;
+  /** 최근 식사 품질: +1 요리, -1 생식, 0 없음 */
+  mealMood = 0;
+  mealMoodTimer = 0;
 
   // 전투
   hp = COLONIST_HP;
@@ -106,6 +109,8 @@ export class Pawn {
       this.hp = Math.min(this.maxHp, this.hp + HP_REGEN * (this.sleeping ? 3 : 1) * dt);
     }
 
+    this.mealMoodTimer = Math.max(0, this.mealMoodTimer - dt);
+
     // 기분: 현재 상황이 만드는 목표치로 서서히 수렴
     const target = this.moodTarget(g);
     this.mood += (target - this.mood) * Math.min(1, dt / MOOD_LERP_SECONDS);
@@ -161,6 +166,10 @@ export class Pawn {
     else if (this.rest < 0.35) f.push({ label: '피곤함', value: -0.08 });
     else if (this.rest > 0.85) f.push({ label: '개운함', value: 0.06 });
     if (this.hp < this.maxHp * 0.5) f.push({ label: '부상', value: -0.12 });
+    if (this.mealMoodTimer > 0) {
+      if (this.mealMood > 0) f.push({ label: '따뜻한 식사', value: 0.06 });
+      else if (this.mealMood < 0) f.push({ label: '생식', value: -0.05 });
+    }
     if (g.bedCount < g.pawns.length) f.push({ label: '침대 부족', value: -0.08 });
     if (g.raiders.length > 0) f.push({ label: '습격 공포', value: -0.1 });
     return f;

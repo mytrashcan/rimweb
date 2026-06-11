@@ -5,6 +5,7 @@ import {
   HUNGER_SEEK_FOOD, REST_COLLAPSE, NIGHT_SLEEP_REST,
   BREAK_DURATION, BREAK_CATHARSIS,
   SHOOT_RANGE, SHOOT_COOLDOWN, SHOOT_DAMAGE,
+  COOK_SECONDS, COOK_RAW_NEEDED, MEAL_HUNGER, RAW_HUNGER, MEAL_MOOD_SECONDS,
 } from './constants';
 import { hasLineOfSight } from './combat';
 import { bfsNearest } from './astar';
@@ -300,6 +301,7 @@ export class MoveJob extends Job {
 class EatJob extends Job {
   label = '식사하러 가는 중';
   private timer = -1;
+  private eatenType: 'meal' | 'food' | 'bush' = 'bush';
   constructor(private target: number, private kind: 'item' | 'bush') {
     super();
   }
@@ -307,7 +309,10 @@ class EatJob extends Job {
     const m = g.map;
     if (this.kind === 'item') {
       const stack = m.items.get(this.target);
-      if (this.timer < 0 && (!stack || stack.type !== 'food')) { this.failed = true; return; }
+      if (this.timer < 0 && (!stack || (stack.type !== 'food' && stack.type !== 'meal'))) {
+        this.failed = true;
+        return;
+      }
     } else if (this.timer < 0 && (m.plant[this.target] !== Plant.Bush || m.growth[this.target] < 0.5)) {
       this.failed = true;
       return;
@@ -319,7 +324,9 @@ class EatJob extends Job {
       if (move !== 'arrived') return;
       // 도착: 먹기 시작
       if (this.kind === 'item') {
-        if (m.takeItem(this.target, 1) === 0) { this.failed = true; return; }
+        const stack = m.items.get(this.target);
+        if (!stack || m.takeItem(this.target, 1) === 0) { this.failed = true; return; }
+        this.eatenType = stack.type === 'meal' ? 'meal' : 'food';
         this.timer = EAT_SECONDS;
       } else {
         this.timer = BUSH_EAT_SECONDS;
@@ -329,14 +336,76 @@ class EatJob extends Job {
     }
     this.timer -= dt;
     if (this.timer <= 0) {
-      if (this.kind === 'item') {
-        p.hunger = Math.min(1, p.hunger + 0.85);
+      if (this.eatenType === 'meal') {
+        p.hunger = Math.min(1, p.hunger + MEAL_HUNGER);
+        p.mealMood = 1;
+      } else if (this.eatenType === 'food') {
+        p.hunger = Math.min(1, p.hunger + RAW_HUNGER);
+        p.mealMood = -1;
       } else {
         p.hunger = Math.min(1, p.hunger + 0.5);
+        p.mealMood = -1;
         m.growth[this.target] = 0;
       }
+      p.mealMoodTimer = MEAL_MOOD_SECONDS;
       this.done = true;
     }
+  }
+}
+
+// ---------- 작업: 요리 (화덕에서 생식량 2 → 요리 1) ----------
+
+export class CookJob extends Job {
+  label = '요리 재료 모으는 중';
+  private timer = -1;
+  constructor(private stoveIdx: number) {
+    super();
+  }
+  update(p: Pawn, g: Game, dt: number) {
+    const m = g.map;
+    if (m.structure[this.stoveIdx] !== Structure.Stove) { this.dropAndFail(p, g); return; }
+
+    // 1단계: 생식량 모으기 (여러 스택에서 채울 수 있음)
+    const have = p.carrying?.type === 'food' ? p.carrying.count : 0;
+    if (have < COOK_RAW_NEEDED && this.timer < 0) {
+      if (p.carrying && p.carrying.type !== 'food') { this.dropAndFail(p, g); return; }
+      const src = bfsNearest(m, p.tileX, p.tileY, (i) => {
+        const s = m.items.get(i);
+        return !!s && s.type === 'food' && !g.reserved.has(i) && m.walkableIdx(i);
+      });
+      if (src === null) { this.dropAndFail(p, g); return; }
+      const [sx, sy] = m.xy(src);
+      const move = p.goTo(g, dt, sx, sy);
+      if (move === 'blocked') { this.dropAndFail(p, g); return; }
+      if (move !== 'arrived') return;
+      const taken = m.takeItem(src, COOK_RAW_NEEDED - have);
+      if (taken === 0) { this.dropAndFail(p, g); return; }
+      p.carrying = { type: 'food', count: have + taken };
+      return;
+    }
+
+    // 2단계: 화덕에서 조리
+    const [bx, by] = m.xy(this.stoveIdx);
+    const move = p.goTo(g, dt, bx, by, true);
+    if (move === 'blocked') { this.dropAndFail(p, g); return; }
+    if (move !== 'arrived') return;
+    if (this.timer < 0) {
+      this.timer = COOK_SECONDS;
+      this.label = '요리 중';
+    }
+    this.timer -= dt;
+    if (this.timer <= 0) {
+      p.carrying = null;
+      m.dropItem(this.stoveIdx, 'meal', 1);
+      this.done = true;
+    }
+  }
+  private dropAndFail(p: Pawn, g: Game) {
+    if (p.carrying) {
+      g.map.dropItem(g.map.idx(p.tileX, p.tileY), p.carrying.type, p.carrying.count);
+      p.carrying = null;
+    }
+    this.failed = true;
   }
 }
 
@@ -535,14 +604,17 @@ function findStockpileDest(g: Game, sx: number, sy: number, type: string): numbe
 
 function makeEatJob(p: Pawn, g: Game): Job | null {
   const m = g.map;
-  const foodIdx = bfsNearest(m, p.tileX, p.tileY, (i) => {
-    const s = m.items.get(i);
-    return !!s && s.type === 'food' && !g.reserved.has(i) && m.walkableIdx(i);
-  });
-  if (foodIdx !== null) {
-    const j = new EatJob(foodIdx, 'item');
-    j.reserve(g, foodIdx);
-    return j;
+  // 요리를 가장 선호하고, 없으면 생식량 → 덤불 순
+  for (const wanted of ['meal', 'food'] as const) {
+    const idx = bfsNearest(m, p.tileX, p.tileY, (i) => {
+      const s = m.items.get(i);
+      return !!s && s.type === wanted && !g.reserved.has(i) && m.walkableIdx(i);
+    });
+    if (idx !== null) {
+      const j = new EatJob(idx, 'item');
+      j.reserve(g, idx);
+      return j;
+    }
   }
   const bushIdx = bfsNearest(m, p.tileX, p.tileY, (i) =>
     m.plant[i] === Plant.Bush && m.growth[i] >= 0.5 && !g.reserved.has(i) && m.walkableIdx(i),
@@ -637,6 +709,20 @@ function makeChopWork(p: Pawn, g: Game): Job | null {
   return j;
 }
 
+function makeCookWork(p: Pawn, g: Game): Job | null {
+  const m = g.map;
+  // 비축 요리가 넉넉하면 쉰다
+  const items = m.countItems();
+  if (items.meal >= g.pawns.length * 2 || items.food < COOK_RAW_NEEDED) return null;
+  const stoveIdx = bfsNearest(m, p.tileX, p.tileY, (i) =>
+    m.structure[i] === Structure.Stove && !g.reserved.has(i),
+  );
+  if (stoveIdx === null) return null;
+  const j = new CookJob(stoveIdx);
+  j.reserve(g, stoveIdx);
+  return j;
+}
+
 function makeHuntWork(p: Pawn, g: Game): Job | null {
   let best: Pawn | null = null;
   let bestD = Infinity;
@@ -666,6 +752,7 @@ function makeHaulWork(p: Pawn, g: Game): Job | null {
 
 const WORK_MAKERS: Record<WorkType, (p: Pawn, g: Game) => Job | null> = {
   construct: makeConstructWork,
+  cook: makeCookWork,
   grow: makeGrowWork,
   mine: makeMineWork,
   chop: makeChopWork,

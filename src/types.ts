@@ -15,6 +15,7 @@ export const enum Structure {
   None = 0,
   Wall = 1,
   Bed = 2,
+  Stove = 3,
 }
 
 export const enum Designation {
@@ -23,7 +24,7 @@ export const enum Designation {
   Mine = 2,
 }
 
-export type ItemType = 'wood' | 'stone' | 'food';
+export type ItemType = 'wood' | 'stone' | 'food' | 'meal';
 
 export interface ItemStack {
   type: ItemType;
@@ -31,18 +32,19 @@ export interface ItemStack {
 }
 
 export interface Blueprint {
-  kind: Structure.Wall | Structure.Bed;
+  kind: Structure.Wall | Structure.Bed | Structure.Stove;
   woodNeed: number;
   woodHas: number;
   workLeft: number;
 }
 
 /** 작업 종류 — 배열 순서가 같은 우선순위 내의 처리 순서 */
-export const WORK_TYPES = ['construct', 'grow', 'mine', 'chop', 'hunt', 'haul'] as const;
+export const WORK_TYPES = ['construct', 'cook', 'grow', 'mine', 'chop', 'hunt', 'haul'] as const;
 export type WorkType = (typeof WORK_TYPES)[number];
 
 export const WORK_LABELS: Record<WorkType, string> = {
   construct: '건설',
+  cook: '요리',
   grow: '농사',
   mine: '채굴',
   chop: '벌목',
@@ -51,7 +53,7 @@ export const WORK_LABELS: Record<WorkType, string> = {
 };
 
 export function defaultPriorities(): Record<WorkType, number> {
-  return { construct: 3, grow: 3, mine: 3, chop: 3, hunt: 3, haul: 3 };
+  return { construct: 3, cook: 3, grow: 3, mine: 3, chop: 3, hunt: 3, haul: 3 };
 }
 
 export type Tool =
@@ -60,6 +62,7 @@ export type Tool =
   | 'mine'
   | 'wall'
   | 'bed'
+  | 'stove'
   | 'stockpile'
   | 'farm'
   | 'cancel';

@@ -26,11 +26,11 @@ describe('잡 기버 우선순위', () => {
       return g;
     };
     const g1 = setup();
-    g1.pawns[0].priorities = { construct: 3, grow: 3, mine: 3, chop: 2, hunt: 3, haul: 1 };
+    g1.pawns[0].priorities = { ...g1.pawns[0].priorities, chop: 2, haul: 1 };
     expect(findJob(g1.pawns[0], g1).label).toBe('운반 중');
 
     const g2 = setup();
-    g2.pawns[0].priorities = { construct: 3, grow: 3, mine: 3, chop: 1, hunt: 3, haul: 2 };
+    g2.pawns[0].priorities = { ...g2.pawns[0].priorities, chop: 1, haul: 2 };
     expect(findJob(g2.pawns[0], g2).label).toBe('벌목 중');
   });
 

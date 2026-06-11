@@ -1,5 +1,8 @@
 import type { Application } from 'pixi.js';
-import { WALL_WOOD_COST, WALL_WORK, BED_WOOD_COST, BED_WORK } from './constants';
+import {
+  WALL_WOOD_COST, WALL_WORK, BED_WOOD_COST, BED_WORK,
+  STOVE_WOOD_COST, STOVE_WORK,
+} from './constants';
 import { Plant, Structure, Designation } from './map';
 import type { Game } from './game';
 import type { Camera } from './camera';
@@ -113,6 +116,11 @@ function applyTool(game: Game, rect: Rect) {
         case 'bed':
           if (m.buildableClear(i) && !m.stockpile[i]) {
             m.blueprints.set(i, { kind: Structure.Bed, woodNeed: BED_WOOD_COST, woodHas: 0, workLeft: BED_WORK });
+          }
+          break;
+        case 'stove':
+          if (m.buildableClear(i) && !m.stockpile[i]) {
+            m.blueprints.set(i, { kind: Structure.Stove, woodNeed: STOVE_WOOD_COST, woodHas: 0, workLeft: STOVE_WORK });
           }
           break;
         case 'stockpile':

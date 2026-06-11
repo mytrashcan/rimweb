@@ -103,6 +103,10 @@ export class Renderer {
         } else if (m.structure[i] === Structure.Bed) {
           g.roundRect(px + 2, py + 1, TILE - 4, TILE - 2, 3).fill(0x8c6f4f);
           g.roundRect(px + 4, py + 2, TILE - 8, 6, 2).fill(0xd9d0c0); // 베개
+        } else if (m.structure[i] === Structure.Stove) {
+          g.roundRect(px + 2, py + 2, TILE - 4, TILE - 4, 2).fill(0x55555c);
+          g.circle(px + TILE / 2, py + TILE / 2, TILE * 0.18).fill(0xe07b39); // 불
+          g.circle(px + TILE / 2, py + TILE / 2, TILE * 0.09).fill(0xf0c060);
         } else if (m.plant[i] === Plant.Tree) {
           g.rect(px + TILE / 2 - 2, py + TILE / 2, 4, TILE / 2 - 2).fill(0x5b4226);
           g.circle(px + TILE / 2, py + TILE / 2 - 2, TILE * 0.36).fill(0x2e5d2e);
@@ -200,6 +204,11 @@ export class Renderer {
       } else if (stack.type === 'stone') {
         g.circle(px + TILE / 2, py + TILE / 2 + 2, TILE * 0.26).fill(0x9b9ba3);
         g.circle(px + TILE / 2 - 3, py + TILE / 2 - 2, TILE * 0.16).fill(0x86868e);
+      } else if (stack.type === 'meal') {
+        // 접시에 담긴 요리
+        g.circle(px + TILE / 2, py + TILE / 2, TILE * 0.3).fill(0xe8e0d0);
+        g.circle(px + TILE / 2 - 2, py + TILE / 2 - 1, 2.5).fill(0xc98f4e);
+        g.circle(px + TILE / 2 + 3, py + TILE / 2 + 1, 2.5).fill(0x7d9c4e);
       } else {
         g.circle(px + TILE / 2 - 3, py + TILE / 2, 3).fill(0xc24545);
         g.circle(px + TILE / 2 + 3, py + TILE / 2 - 2, 3).fill(0xd05858);

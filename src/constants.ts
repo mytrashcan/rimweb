@@ -21,6 +21,15 @@ export const BED_WOOD_COST = 6;
 export const BED_WORK = 100;
 export const CONSTRUCT_SPEED = 35; // 작업량/초
 
+// 요리
+export const STOVE_WOOD_COST = 4;
+export const STOVE_WORK = 80;
+export const COOK_SECONDS = 4;
+export const COOK_RAW_NEEDED = 2; // 생식량 2 → 요리 1
+export const MEAL_HUNGER = 0.95;
+export const RAW_HUNGER = 0.55;
+export const MEAL_MOOD_SECONDS = 90; // 식사 기분 지속 시간
+
 export const CHOP_SECONDS = 2.5;
 export const MINE_SECONDS = 3.5;
 export const EAT_SECONDS = 2;

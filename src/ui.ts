@@ -11,6 +11,7 @@ const TOOLS: { id: Tool; label: string }[] = [
   { id: 'mine', label: '⛏️ 채굴' },
   { id: 'wall', label: '🧱 벽 (목재 2)' },
   { id: 'bed', label: '🛏️ 침대 (목재 6)' },
+  { id: 'stove', label: '🍳 화덕 (목재 4)' },
   { id: 'stockpile', label: '📦 비축구역' },
   { id: 'farm', label: '🌾 경작지' },
   { id: 'cancel', label: '❌ 취소' },
@@ -146,6 +147,7 @@ export class UI {
       `<span class="res"><span class="dot" style="background:#9a6b3f"></span>목재 ${res.wood}</span>` +
       `<span class="res"><span class="dot" style="background:#9b9ba3"></span>석재 ${res.stone}</span>` +
       `<span class="res"><span class="dot" style="background:#c24545"></span>식량 ${res.food}</span>` +
+      `<span class="res"><span class="dot" style="background:#e8d9b0"></span>요리 ${res.meal}</span>` +
       `<span class="sep"></span>` +
       `<span>${this.game.seasonName} ${this.game.day}일차 ${this.game.clockText}${this.game.isNight ? ' 🌙' : ''}</span>` +
       (this.game.raiders.length > 0
