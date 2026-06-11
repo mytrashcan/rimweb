@@ -165,6 +165,13 @@ export class Renderer {
           g.roundRect(px + 2, py + 2, TILE - 4, TILE - 4, 2).fill(0x55555c);
           g.circle(px + TILE / 2, py + TILE / 2, TILE * 0.18).fill(0xe07b39); // 불
           g.circle(px + TILE / 2, py + TILE / 2, TILE * 0.09).fill(0xf0c060);
+        } else if (m.structure[i] === Structure.Grave) {
+          const filled = m.structureHp[i] > 0;
+          g.roundRect(px + 3, py + 4, TILE - 6, TILE - 7, 4).fill(filled ? 0x4a3a2c : 0x2c2620);
+          if (filled) {
+            // 묘비
+            g.roundRect(px + TILE / 2 - 2, py + 2, 4, 8, 1.5).fill(0x9b9ba3);
+          }
         } else if (m.plant[i] === Plant.Tree) {
           g.rect(px + TILE / 2 - 2, py + TILE / 2, 4, TILE / 2 - 2).fill(0x5b4226);
           g.circle(px + TILE / 2, py + TILE / 2 - 2, TILE * 0.36).fill(0x2e5d2e);
@@ -262,6 +269,10 @@ export class Renderer {
       } else if (stack.type === 'stone') {
         g.circle(px + TILE / 2, py + TILE / 2 + 2, TILE * 0.26).fill(0x9b9ba3);
         g.circle(px + TILE / 2 - 3, py + TILE / 2 - 2, TILE * 0.16).fill(0x86868e);
+      } else if (stack.type === 'corpse') {
+        g.ellipse(px + TILE / 2, py + TILE / 2, TILE * 0.4, TILE * 0.22)
+          .fill(0x8a8276)
+          .stroke({ width: 1, color: 0x5c564c });
       } else if (stack.type === 'rifle') {
         g.roundRect(px + 2, py + TILE / 2 - 1, TILE - 4, 3, 1.5).fill(0x4a3826);
         g.roundRect(px + 3, py + TILE / 2 - 4, 5, 4, 1).fill(0x6b4f30); // 개머리판

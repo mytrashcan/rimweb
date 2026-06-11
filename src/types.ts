@@ -16,6 +16,7 @@ export const enum Structure {
   Wall = 1,
   Bed = 2,
   Stove = 3,
+  Grave = 4,
 }
 
 export const enum Designation {
@@ -24,7 +25,7 @@ export const enum Designation {
   Mine = 2,
 }
 
-export type ItemType = 'wood' | 'stone' | 'food' | 'meal' | 'rifle';
+export type ItemType = 'wood' | 'stone' | 'food' | 'meal' | 'rifle' | 'corpse';
 
 export interface ItemStack {
   type: ItemType;
@@ -32,7 +33,7 @@ export interface ItemStack {
 }
 
 export interface Blueprint {
-  kind: Structure.Wall | Structure.Bed | Structure.Stove;
+  kind: Structure.Wall | Structure.Bed | Structure.Stove | Structure.Grave;
   woodNeed: number;
   woodHas: number;
   workLeft: number;
@@ -63,6 +64,7 @@ export type Tool =
   | 'wall'
   | 'bed'
   | 'stove'
+  | 'grave'
   | 'stockpile'
   | 'farm'
   | 'cancel';

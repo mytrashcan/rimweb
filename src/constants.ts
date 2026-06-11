@@ -60,6 +60,12 @@ export const FIRST_LIGHTNING_TIME = 1.2; // 일 단위
 export const LIGHTNING_INTERVAL_MIN = 1.5; // 일
 export const LIGHTNING_INTERVAL_RAND = 2;
 
+// 사망/장례
+export const DEATH_CHANCE_ON_DOWN = 0.2; // 체력 0이 될 때 사망할 확률 (아니면 기절)
+export const GRIEF_SECONDS = 240; // '동료의 죽음' 지속 (하루)
+export const GRAVE_WORK = 60;
+export const BURY_SECONDS = 2;
+
 // 인구
 export const MAX_COLONISTS = 6;
 export const FIRST_JOIN_TIME = 2.5; // 일 단위

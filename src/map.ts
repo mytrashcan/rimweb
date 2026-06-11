@@ -182,7 +182,7 @@ export class GameMap {
   }
 
   countItems(): Record<ItemType, number> {
-    const out: Record<ItemType, number> = { wood: 0, stone: 0, food: 0, meal: 0, rifle: 0 };
+    const out: Record<ItemType, number> = { wood: 0, stone: 0, food: 0, meal: 0, rifle: 0, corpse: 0 };
     for (const s of this.items.values()) out[s.type] += s.count;
     return out;
   }

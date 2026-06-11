@@ -12,7 +12,10 @@ import type { Job } from './jobs';
 import { findJob, BreakJob } from './jobs';
 import { updateColonistCombat, updateRaider } from './combat';
 import { updateAnimal } from './animals';
-import { MEAT_PER_ANIMAL, ANIMAL_FLEE_SECONDS, RIFLE_DROP_CHANCE, RAIN_SPEED_MULT } from './constants';
+import {
+  MEAT_PER_ANIMAL, ANIMAL_FLEE_SECONDS, RIFLE_DROP_CHANCE, RAIN_SPEED_MULT,
+  DEATH_CHANCE_ON_DOWN, GRIEF_SECONDS,
+} from './constants';
 
 export interface MoodFactor {
   label: string;
@@ -44,6 +47,8 @@ export class Pawn {
   mealMoodTimer = 0;
   /** 장착 무기 (정착민 전용) */
   weapon: 'rifle' | null = null;
+  /** '동료의 죽음' 애도 타이머 */
+  griefTimer = 0;
 
   // 전투
   hp = COLONIST_HP;
@@ -112,6 +117,7 @@ export class Pawn {
     }
 
     this.mealMoodTimer = Math.max(0, this.mealMoodTimer - dt);
+    this.griefTimer = Math.max(0, this.griefTimer - dt);
 
     // 기분: 현재 상황이 만드는 목표치로 서서히 수렴
     const target = this.moodTarget(g);
@@ -175,6 +181,8 @@ export class Pawn {
     if (g.bedCount < g.pawns.length) f.push({ label: '침대 부족', value: -0.08 });
     if (g.raiders.length > 0) f.push({ label: '습격 공포', value: -0.1 });
     if (g.raining) f.push({ label: g.isWinter ? '눈에 젖음' : '비에 젖음', value: -0.04 });
+    if (this.griefTimer > 0) f.push({ label: '동료의 죽음', value: -0.12 });
+    if (g.corpseCount > 0) f.push({ label: '방치된 시신', value: -0.06 });
     return f;
   }
 
@@ -208,7 +216,11 @@ export class Pawn {
       g.map.dropItem(g.map.idx(this.tileX, this.tileY), 'food', MEAT_PER_ANIMAL); // 고기
       return;
     }
-    // 정착민은 죽지 않고 쓰러진다
+    // 정착민: 운이 나쁘면 사망, 아니면 쓰러진다
+    if (Math.random() < DEATH_CHANCE_ON_DOWN) {
+      this.die(g);
+      return;
+    }
     this.downed = true;
     this.downTimer = DOWNED_RECOVER_SECONDS;
     if (this.job) {
@@ -282,6 +294,26 @@ export class Pawn {
       this.y += (dy / dist) * step;
     }
     return 'moving';
+  }
+
+  /** 정착민 사망: 시신과 소지품을 남기고 콜로니 전체가 애도한다 */
+  die(g: Game) {
+    this.dead = true;
+    if (this.job) {
+      this.job.cleanup(g);
+      this.job = null;
+    }
+    const here = g.map.idx(this.tileX, this.tileY);
+    if (this.carrying) {
+      g.map.dropItem(here, this.carrying.type, this.carrying.count);
+      this.carrying = null;
+    }
+    if (this.weapon === 'rifle') g.map.dropItem(here, 'rifle', 1);
+    g.map.dropItem(here, 'corpse', 1);
+    for (const o of g.pawns) {
+      if (o !== this && o.faction === 'colonist') o.griefTimer = GRIEF_SECONDS;
+    }
+    g.addMessage(`💀 ${this.name}이(가) 사망했다...`);
   }
 
   /** 진행 중인 작업을 버리고 새 작업을 강제 할당 (우클릭 명령) */

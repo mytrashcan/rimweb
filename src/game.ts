@@ -45,6 +45,8 @@ export class Game {
   shots: Shot[] = [];
   /** 침대 수 캐시 (기분 계산용, 틱마다 갱신) */
   bedCount = 0;
+  /** 매장되지 않은 시신 수 캐시 */
+  corpseCount = 0;
   private nextAnimalCheck = DAY_SECONDS;
   nextJoinTime = FIRST_JOIN_TIME * DAY_SECONDS;
   nextLightningTime = FIRST_LIGHTNING_TIME * DAY_SECONDS;
@@ -89,7 +91,15 @@ export class Game {
         if (this.map.structure[i] === Structure.Bed) beds++;
       }
       this.bedCount = beds;
+      let corpses = 0;
+      for (const s of this.map.items.values()) {
+        if (s.type === 'corpse') corpses += s.count;
+      }
+      this.corpseCount = corpses;
       for (const p of this.pawns) p.update(this, dt);
+      if (this.pawns.some((p) => p.dead)) {
+        this.pawns = this.pawns.filter((p) => !p.dead);
+      }
       for (const r of this.raiders) r.update(this, dt);
       if (this.raiders.some((r) => r.dead)) {
         this.raiders = this.raiders.filter((r) => !r.dead);
@@ -269,7 +279,7 @@ export class Game {
           hunger: p.hunger, rest: p.rest, carrying: p.carrying,
           priorities: p.priorities,
           hp: p.hp, downed: p.downed, downTimer: p.downTimer, drafted: p.drafted,
-          mood: p.mood, weapon: p.weapon,
+          mood: p.mood, weapon: p.weapon, griefTimer: p.griefTimer,
         })),
         raiders: this.raiders.map((r) => ({ x: r.x, y: r.y, hp: r.hp, ranged: r.isRanged })),
         animals: this.animals.map((a) => ({ x: a.x, y: a.y, hp: a.hp, hunted: a.hunted })),
@@ -300,7 +310,7 @@ export class Game {
         hunger: number; rest: number; carrying: Pawn['carrying'];
         priorities?: Pawn['priorities']; hp?: number; downed?: boolean;
         downTimer?: number; drafted?: boolean; mood?: number;
-        weapon?: Pawn['weapon'];
+        weapon?: Pawn['weapon']; griefTimer?: number;
       }
       this.pawns = (data.pawns as SavedPawn[]).map((s) => {
         const p = new Pawn(s.x - 0.5, s.y - 0.5, s.name, s.color);
@@ -314,6 +324,7 @@ export class Game {
         p.drafted = s.drafted ?? false;
         p.mood = s.mood ?? 0.65;
         p.weapon = s.weapon ?? null;
+        p.griefTimer = s.griefTimer ?? 0;
         return p;
       });
       this.raiders = (data.raiders ?? []).map((s: { x: number; y: number; hp: number; ranged?: boolean }) => {

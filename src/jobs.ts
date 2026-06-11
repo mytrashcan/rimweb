@@ -6,7 +6,7 @@ import {
   BREAK_DURATION, BREAK_CATHARSIS,
   SHOOT_COOLDOWN,
   COOK_SECONDS, COOK_RAW_NEEDED, MEAL_HUNGER, RAW_HUNGER, MEAL_MOOD_SECONDS,
-  FIRE_BEAT_RATE,
+  FIRE_BEAT_RATE, BURY_SECONDS,
 } from './constants';
 import { hasLineOfSight, shootRange, shootDamage } from './combat';
 import { bfsNearest } from './astar';
@@ -442,6 +442,55 @@ class SleepJob extends Job {
   }
 }
 
+// ---------- 작업: 매장 (시신 → 무덤) ----------
+
+class BuryJob extends Job {
+  label = '시신 운구 중';
+  private phase: 'fetch' | 'carry' = 'fetch';
+  private timer = BURY_SECONDS;
+  constructor(private src: number, private graveIdx: number) {
+    super();
+  }
+  update(p: Pawn, g: Game, dt: number) {
+    const m = g.map;
+    // 무덤이 사라졌거나 채워졌으면 중단
+    if (m.structure[this.graveIdx] !== Structure.Grave || m.structureHp[this.graveIdx] > 0) {
+      this.dropAndFail(p, g);
+      return;
+    }
+    if (this.phase === 'fetch') {
+      const stack = m.items.get(this.src);
+      if (!stack || stack.type !== 'corpse') { this.failed = true; return; }
+      const [sx, sy] = m.xy(this.src);
+      const move = p.goTo(g, dt, sx, sy);
+      if (move === 'blocked') { this.failed = true; return; }
+      if (move !== 'arrived') return;
+      if (m.takeItem(this.src, 1) === 0) { this.failed = true; return; }
+      p.carrying = { type: 'corpse', count: 1 };
+      this.phase = 'carry';
+    } else {
+      const [gx, gy] = m.xy(this.graveIdx);
+      const move = p.goTo(g, dt, gx, gy, true);
+      if (move === 'blocked') { this.dropAndFail(p, g); return; }
+      if (move !== 'arrived') return;
+      this.timer -= dt;
+      if (this.timer <= 0) {
+        p.carrying = null;
+        m.structureHp[this.graveIdx] = 1; // 봉분 표시 (채워진 무덤)
+        m.dirty = true;
+        this.done = true;
+      }
+    }
+  }
+  private dropAndFail(p: Pawn, g: Game) {
+    if (p.carrying) {
+      g.map.dropItem(g.map.idx(p.tileX, p.tileY), p.carrying.type, p.carrying.count);
+      p.carrying = null;
+    }
+    this.failed = true;
+  }
+}
+
 // ---------- 작업: 무기 장착 ----------
 
 class EquipJob extends Job {
@@ -780,8 +829,25 @@ function makeHuntWork(p: Pawn, g: Game): Job | null {
 
 function makeHaulWork(p: Pawn, g: Game): Job | null {
   const m = g.map;
+  // 매장이 운반보다 먼저: 시신은 콜로니 사기를 갉아먹는다
+  const corpseIdx = bfsNearest(m, p.tileX, p.tileY, (i) => {
+    const s = m.items.get(i);
+    return !!s && s.type === 'corpse' && !g.reserved.has(i) && m.walkableIdx(i);
+  });
+  if (corpseIdx !== null) {
+    const graveIdx = bfsNearest(m, p.tileX, p.tileY, (i) =>
+      m.structure[i] === Structure.Grave && m.structureHp[i] === 0 && !g.reserved.has(i),
+    );
+    if (graveIdx !== null) {
+      const j = new BuryJob(corpseIdx, graveIdx);
+      j.reserve(g, corpseIdx);
+      j.reserve(g, graveIdx);
+      return j;
+    }
+  }
   const haulSrc = bfsNearest(m, p.tileX, p.tileY, (i) => {
-    if (!m.items.has(i) || m.stockpile[i] || g.reserved.has(i)) return false;
+    const s = m.items.get(i);
+    if (!s || s.type === 'corpse' || m.stockpile[i] || g.reserved.has(i)) return false;
     return m.walkableIdx(i);
   });
   if (haulSrc === null) return null;
