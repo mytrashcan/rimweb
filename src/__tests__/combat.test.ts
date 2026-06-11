@@ -3,7 +3,7 @@ import { hasLineOfSight } from '../combat';
 import { Pawn } from '../pawn';
 import { Structure } from '../types';
 import { RAIDER_HP, WALL_HP, DOWNED_RECOVER_SECONDS } from '../constants';
-import { blankGame, run } from './helpers';
+import { blankGame, run, downPawn } from './helpers';
 import type { Game } from '../game';
 
 function addRaider(g: Game, x: number, y: number): Pawn {
@@ -68,7 +68,7 @@ describe('전투', () => {
   it('정착민은 체력 0에 쓰러지고 시간이 지나면 회복한다', () => {
     const g = blankGame();
     const p = g.pawns[0];
-    p.takeDamage(g, 9999);
+    downPawn(g, p);
     expect(p.downed).toBe(true);
     expect(p.hp).toBe(0);
     run(g, DOWNED_RECOVER_SECONDS + 5);

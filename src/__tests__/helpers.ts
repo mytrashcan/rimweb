@@ -1,4 +1,6 @@
+import { vi } from 'vitest';
 import { Game } from '../game';
+import type { Pawn } from '../pawn';
 
 /**
  * 절차 생성된 맵을 전부 초기화한 결정적 테스트용 게임.
@@ -40,4 +42,11 @@ export function blankGame(): Game {
 /** dt=0.1초 단위로 게임을 seconds초만큼 진행 */
 export function run(g: Game, seconds: number) {
   for (let k = 0; k < seconds * 10; k++) g.update(0.1);
+}
+
+/** 20% 사망 확률을 우회하고 확실하게 기절시킨다 (테스트 결정성 확보) */
+export function downPawn(g: Game, p: Pawn) {
+  const spy = vi.spyOn(Math, 'random').mockReturnValue(0.99);
+  p.takeDamage(g, 9999);
+  spy.mockRestore();
 }
