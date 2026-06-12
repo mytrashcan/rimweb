@@ -146,6 +146,10 @@ export class Renderer {
         const py = y * TILE;
         g.rect(px, py, TILE, TILE).fill(m.baseColor[i]);
 
+        if (m.indoor[i]) {
+          // 지붕 음영
+          g.rect(px, py, TILE, TILE).fill({ color: 0x10141a, alpha: 0.18 });
+        }
         if (m.farm[i]) {
           // 갈아엎은 밭고랑
           g.rect(px, py, TILE, TILE).fill({ color: 0x4a3826, alpha: 0.75 });

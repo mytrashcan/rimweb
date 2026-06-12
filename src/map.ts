@@ -32,6 +32,8 @@ export class GameMap {
   designation = new Uint8Array(MAP_W * MAP_H);
   /** 화세 0~1: 1에 도달하면 연료가 타 없어진다 */
   fire = new Float32Array(MAP_W * MAP_H);
+  /** 1 = 실내 (벽/바위로 맵 가장자리와 완전히 차단된 타일) */
+  indoor = new Uint8Array(MAP_W * MAP_H);
   baseColor = new Uint32Array(MAP_W * MAP_H);
   blueprints = new Map<number, Blueprint>();
   items = new Map<number, ItemStack>();
@@ -107,6 +109,48 @@ export class GameMap {
     return null;
   }
 
+  /**
+   * 실내 판정 다시 계산: 맵 가장자리에서 벽/바위가 아닌 타일로 플러드필해
+   * 닿지 않는 곳이 실내다. 벽이 생기거나 부서질 때 호출.
+   */
+  recomputeIndoor() {
+    const blocked = (i: number) => this.structure[i] === Structure.Wall || this.rock[i] === 1;
+    const reached = new Uint8Array(this.indoor.length);
+    const queue: number[] = [];
+    for (let x = 0; x < this.w; x++) {
+      for (const y of [0, this.h - 1]) {
+        const i = this.idx(x, y);
+        if (!blocked(i) && !reached[i]) { reached[i] = 1; queue.push(i); }
+      }
+    }
+    for (let y = 0; y < this.h; y++) {
+      for (const x of [0, this.w - 1]) {
+        const i = this.idx(x, y);
+        if (!blocked(i) && !reached[i]) { reached[i] = 1; queue.push(i); }
+      }
+    }
+    let head = 0;
+    while (head < queue.length) {
+      const ci = queue[head++];
+      const cx = ci % this.w;
+      const cy = (ci / this.w) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+        if (!this.inBounds(nx, ny)) continue;
+        const ni = this.idx(nx, ny);
+        if (!reached[ni] && !blocked(ni)) {
+          reached[ni] = 1;
+          queue.push(ni);
+        }
+      }
+    }
+    for (let i = 0; i < this.indoor.length; i++) {
+      this.indoor[i] = !blocked(i) && !reached[i] ? 1 : 0;
+    }
+    this.dirty = true;
+  }
+
   /** 불이 붙을 수 있는 타일: 식물, 목조 구조물(벽·침대), 타는 아이템 */
   flammable(i: number): boolean {
     if (this.terrain[i] === Terrain.Water || this.rock[i]) return false;
@@ -146,8 +190,10 @@ export class GameMap {
         this.growth[i] = 0;
         this.designation[i] = Designation.None;
         if (this.structure[i] === Structure.Wall || this.structure[i] === Structure.Bed) {
+          const wasWall = this.structure[i] === Structure.Wall;
           this.structure[i] = Structure.None;
           this.structureHp[i] = 0;
+          if (wasWall) this.recomputeIndoor();
         }
         const s = this.items.get(i);
         if (s && s.type !== 'stone') this.items.delete(i);
@@ -164,9 +210,11 @@ export class GameMap {
     if (this.structure[i] !== Structure.Wall && this.structure[i] !== Structure.Turret) return false;
     this.structureHp[i] -= dmg;
     if (this.structureHp[i] <= 0) {
+      const wasWall = this.structure[i] === Structure.Wall;
       this.structure[i] = Structure.None;
       this.structureHp[i] = 0;
       this.dirty = true;
+      if (wasWall) this.recomputeIndoor(); // 구멍이 나면 실내가 아니게 된다
       return true;
     }
     return false;
@@ -252,6 +300,7 @@ export class GameMap {
     this.blueprints = new Map(data.blueprints);
     this.items = new Map(data.items);
     this.recomputeColors();
+    this.recomputeIndoor();
     this.dirty = true;
   }
 
@@ -317,6 +366,7 @@ export class GameMap {
     this.dropItem(this.idx(cx + 1, cy + 1), 'food', 14);
 
     this.recomputeColors();
+    this.recomputeIndoor();
     this.dirty = true;
   }
 

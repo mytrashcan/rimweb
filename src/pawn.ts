@@ -185,7 +185,9 @@ export class Pawn {
     }
     if (g.bedCount < g.pawns.length) f.push({ label: '침대 부족', value: -0.08 });
     if (g.raiders.length > 0) f.push({ label: '습격 공포', value: -0.1 });
-    if (g.raining) f.push({ label: g.isWinter ? '눈에 젖음' : '비에 젖음', value: -0.04 });
+    const indoor = g.map.indoor[g.map.idx(this.tileX, this.tileY)] === 1;
+    if (indoor) f.push({ label: '아늑한 실내', value: 0.05 });
+    if (g.raining && !indoor) f.push({ label: g.isWinter ? '눈에 젖음' : '비에 젖음', value: -0.04 });
     if (this.griefTimer > 0) f.push({ label: '동료의 죽음', value: -0.12 });
     if (g.corpseCount > 0) f.push({ label: '방치된 시신', value: -0.06 });
     return f;

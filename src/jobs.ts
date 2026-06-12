@@ -220,6 +220,7 @@ class ConstructJob extends Job {
       if (bp.kind === Structure.Wall || bp.kind === Structure.Turret) {
         m.structureHp[this.bpIdx] = WALL_HP;
         for (const other of g.pawns) other.nudgeToWalkable(g); // 통행 불가가 됨
+        if (bp.kind === Structure.Wall) m.recomputeIndoor(); // 방이 완성됐을 수 있다
       }
       this.done = true;
     }
@@ -434,7 +435,9 @@ class SleepJob extends Job {
       this.label = this.inBed ? '수면 중' : '바닥에서 수면 중';
       p.sleeping = true;
     }
-    p.rest = Math.min(1, p.rest + dt / (this.inBed ? 40 : 110));
+    // 실내 침대가 가장 편하다: 침대 40초 (실내면 32초), 바닥 110초
+    const indoor = g.map.indoor[g.map.idx(p.tileX, p.tileY)] === 1;
+    p.rest = Math.min(1, p.rest + dt / (this.inBed ? (indoor ? 32 : 40) : 110));
     if (p.rest >= 0.99) {
       p.sleeping = false;
       this.done = true;
