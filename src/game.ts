@@ -12,8 +12,10 @@ import {
   FIRE_DAMAGE_PER_SEC, FIRST_LIGHTNING_TIME, LIGHTNING_INTERVAL_MIN, LIGHTNING_INTERVAL_RAND,
   FIRST_RAIN_TIME, RAIN_INTERVAL_MIN, RAIN_INTERVAL_RAND,
   RAIN_DURATION_MIN, RAIN_DURATION_RAND, RAIN_DOUSE_RATE, RAIN_GROWTH_BONUS,
+  FIRST_TRADER_TIME, TRADER_INTERVAL_MIN, TRADER_INTERVAL_RAND, TRADER_STAY,
 } from './constants';
 import { updateTurrets } from './combat';
+import { makeTrader, TRADE_OFFERS, ITEM_LABELS } from './trader';
 import type { Shot } from './combat';
 import type { ItemType } from './types';
 
@@ -54,6 +56,9 @@ export class Game {
   /** 비 시작 시각 (clear일 때) 또는 비 그칠 시각 (raining일 때) */
   raining = false;
   nextWeatherTime = FIRST_RAIN_TIME * DAY_SECONDS;
+  trader: Pawn | null = null;
+  traderUntil = 0;
+  nextTraderTime = FIRST_TRADER_TIME * DAY_SECONDS;
   messages: { text: string; until: number }[] = [];
   nextRaidTime = FIRST_RAID_TIME * DAY_SECONDS;
 
@@ -122,6 +127,16 @@ export class Game {
       if (this.time >= this.nextRaidTime) this.spawnRaid();
       if (this.time >= this.nextJoinTime) this.tryJoinWanderer();
       if (this.time >= this.nextLightningTime) this.strikeLightning();
+      // 상인 캐러밴
+      if (this.trader) {
+        this.trader.update(this, dt);
+        if (this.trader.dead) {
+          this.trader = null;
+          this.addMessage('상인이 떠났다.');
+        }
+      } else if (this.time >= this.nextTraderTime) {
+        this.spawnTrader();
+      }
       // 날씨 전환
       if (this.time >= this.nextWeatherTime) {
         this.raining = !this.raining;
@@ -169,6 +184,30 @@ export class Game {
       if (m.walkable(x, y)) return { x, y };
     }
     return null;
+  }
+
+  spawnTrader() {
+    this.nextTraderTime =
+      this.time + (TRADER_INTERVAL_MIN + Math.random() * TRADER_INTERVAL_RAND) * DAY_SECONDS;
+    const spot = this.findEdgeTile();
+    if (!spot) return;
+    this.trader = makeTrader(spot.x, spot.y);
+    this.traderUntil = this.time + TRADER_STAY * DAY_SECONDS;
+    this.addMessage('🛒 상인 캐러밴이 도착했다! 거래해 보자.');
+  }
+
+  /** 물물교환 실행. 자원이 부족하면 false. */
+  trade(offerIdx: number): boolean {
+    const offer = TRADE_OFFERS[offerIdx];
+    if (!this.trader || !offer) return false;
+    const [giveType, giveCount] = offer.give;
+    const [getType, getCount] = offer.get;
+    if (!this.map.takeResource(giveType, giveCount)) return false;
+    this.map.dropItem(this.map.idx(this.trader.tileX, this.trader.tileY), getType, getCount);
+    this.addMessage(
+      `🤝 ${ITEM_LABELS[giveType]} ${giveCount} → ${ITEM_LABELS[getType]} ${getCount} 거래 완료`,
+    );
+    return true;
   }
 
   /** 번개 이벤트: 가연물에 떨어지면 화재 발생 */
@@ -291,6 +330,9 @@ export class Game {
         nextJoinTime: this.nextJoinTime,
         raining: this.raining,
         nextWeatherTime: this.nextWeatherTime,
+        trader: this.trader ? { x: this.trader.x, y: this.trader.y } : null,
+        traderUntil: this.traderUntil,
+        nextTraderTime: this.nextTraderTime,
       };
       localStorage.setItem('rimweb-save', JSON.stringify(data));
       return true;
@@ -348,6 +390,9 @@ export class Game {
       this.nextJoinTime = data.nextJoinTime ?? this.time + FIRST_JOIN_TIME * DAY_SECONDS;
       this.raining = data.raining ?? false;
       this.nextWeatherTime = data.nextWeatherTime ?? this.time + FIRST_RAIN_TIME * DAY_SECONDS;
+      this.trader = data.trader ? makeTrader(data.trader.x - 0.5, data.trader.y - 0.5) : null;
+      this.traderUntil = data.traderUntil ?? 0;
+      this.nextTraderTime = data.nextTraderTime ?? this.time + FIRST_TRADER_TIME * DAY_SECONDS;
       this.shots = [];
       this.messages = [];
       return true;

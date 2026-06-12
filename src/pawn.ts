@@ -12,6 +12,7 @@ import type { Job } from './jobs';
 import { findJob, BreakJob } from './jobs';
 import { updateColonistCombat, updateRaider } from './combat';
 import { updateAnimal } from './animals';
+import { updateTrader } from './trader';
 import {
   MEAT_PER_ANIMAL, ANIMAL_FLEE_SECONDS, RIFLE_DROP_CHANCE, RAIN_SPEED_MULT,
   DEATH_CHANCE_ON_DOWN, GRIEF_SECONDS,
@@ -23,7 +24,7 @@ export interface MoodFactor {
 }
 
 export type MoveResult = 'arrived' | 'moving' | 'blocked';
-export type Faction = 'colonist' | 'raider' | 'animal';
+export type Faction = 'colonist' | 'raider' | 'animal' | 'trader';
 
 export class Pawn {
   x: number; // 타일 단위 좌표 (칸 중심 = x.5)
@@ -106,6 +107,10 @@ export class Pawn {
     }
     if (this.faction === 'animal') {
       updateAnimal(this, g, dt);
+      return;
+    }
+    if (this.faction === 'trader') {
+      updateTrader(this, g, dt);
       return;
     }
 
@@ -242,6 +247,7 @@ export class Pawn {
     let s = PAWN_SPEED;
     if (this.faction === 'raider') s *= 0.85;
     if (this.faction === 'animal') s *= this.fleeTimer > 0 ? 1.3 : 0.55;
+    if (this.faction === 'trader') s *= 0.8;
     if (this.carrying) s *= 0.85;
     if (this.faction === 'colonist' && this.hunger <= 0) s *= 0.5; // 굶주림 페널티
     return s;

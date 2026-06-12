@@ -63,6 +63,22 @@
     .bar > div { height: 100%; transition: width 0.2s; }
     .barlabel { font-size: 11px; color: #9aa; }
 
+    #tradepanel {
+      top: 48px; left: 8px; width: 230px;
+      background: rgba(20, 24, 28, 0.92);
+      border: 1px solid #3a4148; border-radius: 6px;
+      padding: 10px 12px; font-size: 13px; display: none;
+    }
+    #tradepanel h3 { font-size: 13px; margin-bottom: 8px; color: #d9c98a; }
+    #tradepanel button {
+      width: 100%; margin: 3px 0; padding: 7px;
+      border: 1px solid #3a4148; border-radius: 4px;
+      background: #232930; color: #d8d8d8; cursor: pointer; font-size: 13px;
+      text-align: left;
+    }
+    #tradepanel button:hover:not(:disabled) { background: #2d3540; }
+    #tradepanel button:disabled { opacity: 0.4; cursor: default; }
+
     #workpanel {
       top: 48px; right: 8px;
       background: rgba(20, 24, 28, 0.92);
@@ -114,6 +130,7 @@
   <div id="toolbar" class="hud"></div>
   <div id="pawnpanel" class="hud"></div>
   <div id="workpanel" class="hud"></div>
+  <div id="tradepanel" class="hud"></div>
   <div id="messages" class="hud"></div>
   <div id="hint" class="hud">
     좌클릭 드래그: 도구 적용 / 클릭: 정착민 선택<br />

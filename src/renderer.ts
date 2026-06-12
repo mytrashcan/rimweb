@@ -110,7 +110,12 @@ export class Renderer {
 
   /** 정착민 + 약탈자 뷰를 동기화 (스폰/사망 대응) */
   private syncPawnViews() {
-    const all = new Set<Pawn>([...this.game.pawns, ...this.game.raiders, ...this.game.animals]);
+    const all = new Set<Pawn>([
+      ...this.game.pawns,
+      ...this.game.raiders,
+      ...this.game.animals,
+      ...(this.game.trader ? [this.game.trader] : []),
+    ]);
     for (const p of all) {
       if (this.pawnViews.has(p)) continue;
       const root = new Container();
@@ -324,6 +329,11 @@ export class Renderer {
         // 사슴 귀
         g.circle(-bodyR * 0.7, -bodyR * 0.8, bodyR * 0.32).fill(0x8a6b48);
         g.circle(bodyR * 0.7, -bodyR * 0.8, bodyR * 0.32).fill(0x8a6b48);
+      }
+      if (p.faction === 'trader') {
+        // 챙 넓은 모자
+        g.ellipse(0, -bodyR * 0.7, bodyR * 1.1, bodyR * 0.35).fill(0x7a5c38);
+        g.circle(0, -bodyR * 0.85, bodyR * 0.45).fill(0x8a6b42);
       }
       if (p.isRanged || p.weapon === 'rifle') {
         // 어깨에 멘 총신

@@ -182,6 +182,23 @@ export class GameMap {
     return taken;
   }
 
+  /** 여러 스택에 흩어진 자원을 합쳐서 차감. 부족하면 아무것도 안 하고 false. */
+  takeResource(type: ItemType, count: number): boolean {
+    let total = 0;
+    for (const s of this.items.values()) if (s.type === type) total += s.count;
+    if (total < count) return false;
+    let left = count;
+    for (const [i, s] of this.items) {
+      if (s.type !== type) continue;
+      const take = Math.min(s.count, left);
+      s.count -= take;
+      left -= take;
+      if (s.count <= 0) this.items.delete(i);
+      if (left <= 0) break;
+    }
+    return true;
+  }
+
   countItems(): Record<ItemType, number> {
     const out: Record<ItemType, number> = { wood: 0, stone: 0, food: 0, meal: 0, rifle: 0, corpse: 0 };
     for (const s of this.items.values()) out[s.type] += s.count;

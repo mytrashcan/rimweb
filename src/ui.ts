@@ -3,6 +3,7 @@ import type { Tool, WorkType } from './types';
 import { WORK_TYPES, WORK_LABELS } from './types';
 import { uiState, clearSelection } from './state';
 import { toggleDraftSelected, designateSelectedTiles, designateSelectedAnimals } from './selection';
+import { TRADE_OFFERS, ITEM_LABELS } from './trader';
 import type { Pawn } from './pawn';
 
 const TOOLS: { id: Tool; label: string }[] = [
@@ -25,7 +26,10 @@ export class UI {
   private toolbar = document.getElementById('toolbar')!;
   private pawnpanel = document.getElementById('pawnpanel')!;
   private workpanel = document.getElementById('workpanel')!;
+  private tradepanel = document.getElementById('tradepanel')!;
   private messagesEl = document.getElementById('messages')!;
+  private tradeButtons: HTMLButtonElement[] = [];
+  private tradeBtn!: HTMLButtonElement;
   private toolButtons = new Map<Tool, HTMLButtonElement>();
   private speedButtons: HTMLButtonElement[] = [];
   private workCells = new Map<Pawn, Map<WorkType, HTMLTableCellElement>>();
@@ -79,6 +83,17 @@ export class UI {
       this.workpanel.style.display = open ? 'none' : 'block';
     };
     this.speedbar.append(workBtn);
+    // 거래 패널 (상인 방문 중에만 버튼 표시)
+    this.tradeBtn = document.createElement('button');
+    this.tradeBtn.textContent = '🛒';
+    this.tradeBtn.title = '거래';
+    this.tradeBtn.style.display = 'none';
+    this.tradeBtn.onclick = () => {
+      const open = this.tradepanel.style.display === 'block';
+      this.tradepanel.style.display = open ? 'none' : 'block';
+    };
+    this.speedbar.append(this.tradeBtn);
+    this.buildTradePanel();
     this.buildWorkPanel();
     // 패널은 innerHTML로 다시 그려지므로 버튼은 위임으로 처리.
     // click은 다시 그리는 사이에 유실될 수 있어 pointerdown 사용.
@@ -96,6 +111,19 @@ export class UI {
       } else if (action === 'hunt') {
         designateSelectedAnimals();
       }
+    });
+  }
+
+  private buildTradePanel() {
+    this.tradepanel.innerHTML = '<h3>🛒 상인과 거래</h3>';
+    TRADE_OFFERS.forEach((offer, i) => {
+      const btn = document.createElement('button');
+      const [gt, gc] = offer.give;
+      const [rt, rc] = offer.get;
+      btn.textContent = `${ITEM_LABELS[gt]} ${gc} → ${ITEM_LABELS[rt]} ${rc}`;
+      btn.onclick = () => this.game.trade(i);
+      this.tradepanel.appendChild(btn);
+      this.tradeButtons.push(btn);
     });
   }
 
@@ -175,6 +203,17 @@ export class UI {
           cell.style.fontWeight = v === 1 ? 'bold' : 'normal';
         }
       }
+    }
+
+    // 거래 버튼/패널: 상인이 있을 때만
+    const traderHere = this.game.trader !== null;
+    this.tradeBtn.style.display = traderHere ? '' : 'none';
+    if (!traderHere) this.tradepanel.style.display = 'none';
+    else if (this.tradepanel.style.display === 'block') {
+      const res2 = this.game.countResources();
+      TRADE_OFFERS.forEach((offer, i) => {
+        this.tradeButtons[i].disabled = res2[offer.give[0]] < offer.give[1];
+      });
     }
 
     // 메시지 알림

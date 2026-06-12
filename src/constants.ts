@@ -79,6 +79,12 @@ export const FIRST_JOIN_TIME = 2.5; // 일 단위
 export const JOIN_INTERVAL_MIN = 2; // 일
 export const JOIN_INTERVAL_RAND = 1.5;
 
+// 거래 캐러밴
+export const FIRST_TRADER_TIME = 2; // 일 단위
+export const TRADER_INTERVAL_MIN = 2.5; // 일
+export const TRADER_INTERVAL_RAND = 2;
+export const TRADER_STAY = 0.6; // 체류 시간 (일)
+
 // 야생동물
 export const ANIMAL_HP = 40;
 export const MEAT_PER_ANIMAL = 6;
